@@ -1,3 +1,6 @@
 __pycache__/
 *.pyc
 whoami/.whoami
+*.whoami
+*whoami/*.whoami
+whoami/.whoami
