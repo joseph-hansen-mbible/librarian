@@ -31,6 +31,85 @@ class Creators:
         main_tab.pack(fill='both', expand=True)
         notebook.add(main_tab, text='Main')
         return main_tab
+    
+    @staticmethod
+    def create_command_entry_frame(parent):
+        command_bar_frame = ttk.Frame(parent)
+        command_bar_frame.pack(fill='x', expand=False, padx=10, pady=40, side='top')
+        return command_bar_frame
+    
+    @staticmethod
+    def fill_command_entry_frame(ref):
+        # "I want to..." label + action optionbox + "in" + project optionbox + "for" + scene optionbox + shot optionbox
+        style = ttk.Style(ref.command_bar_frame)
+        command_font = ("Helvetica", 14, "bold")
+        style.configure("CommandBar.TLabel", font=command_font)
+        style.configure("CommandBar.TMenubutton", font=command_font)
+        style.configure("Go.TButton", font=command_font, padding=(12, 6))
+
+        action_label = ttk.Label(
+            ref.command_bar_frame,
+            text="I want to...",
+            style="CommandBar.TLabel",
+            font=command_font,
+        )
+        action_label.pack(side='left', padx=5)
+        ref.command_action_var = tk.StringVar(value="Action")
+        ref.command_action_optionbox = ttk.OptionMenu(
+            ref.command_bar_frame,
+            ref.command_action_var,
+            "Action",
+            "Action",
+            style="CommandBar.TMenubutton",
+        )
+        ref.command_action_optionbox.pack(side='left', padx=5)
+        second_command_label = ttk.Label(
+            ref.command_bar_frame,
+            text="in",
+            style="CommandBar.TLabel",
+            font=command_font,
+        )
+        second_command_label.pack(side='left', padx=5)
+        ref.command_project_var = tk.StringVar(value="Project")
+        ref.command_project_optionbox = ttk.OptionMenu(
+            ref.command_bar_frame,
+            ref.command_project_var,
+            "Project",
+            "Project",
+            style="CommandBar.TMenubutton",
+        )
+        ref.command_project_optionbox.pack(side='left', padx=5)
+        third_command_label = ttk.Label(
+            ref.command_bar_frame,
+            text="for",
+            style="CommandBar.TLabel",
+            font=command_font,
+        )
+        third_command_label.pack(side='left', padx=5)
+        ref.command_scene_var = tk.StringVar(value="Scene")
+        ref.command_scene_optionbox = ttk.OptionMenu(
+            ref.command_bar_frame,
+            ref.command_scene_var,
+            "Scene",
+            "Scene",
+            style="CommandBar.TMenubutton",
+        )
+        ref.command_scene_optionbox.pack(side='left', padx=5)
+        ref.command_shot_var = tk.StringVar(value="Shot")
+        ref.command_shot_optionbox = ttk.OptionMenu(
+            ref.command_bar_frame,
+            ref.command_shot_var,
+            "Shot",
+            "Shot",
+            style="CommandBar.TMenubutton",
+        )
+        ref.command_shot_optionbox.pack(side='left', padx=5)
+        ref.command_execute_button = ttk.Button(
+            ref.command_bar_frame,
+            text="Go",
+            style="Go.TButton",
+        )
+        ref.command_execute_button.pack(side='left', padx=5)
 
     @staticmethod
     def create_tab_settings(notebook):
@@ -50,7 +129,11 @@ class Creators:
         # left column project list
         project_list_frame = ttk.Frame(projects_frame)
         project_list_frame.pack(side='left', fill='both', expand=True, padx=5, pady=5)
-        project_listbox = tk.Listbox(project_list_frame, height=10)
+        project_listbox = tk.Listbox(
+            project_list_frame,
+            height=10,
+            exportselection=False,
+        )
         project_listbox.pack(side='left', fill='both', expand=True)
         
         # right column project details
@@ -75,7 +158,11 @@ class Creators:
     def create_settings_who_frame(ref):
         who_frame = ttk.LabelFrame(ref.settings_tab, text="Who am I?")
         who_frame.pack(fill='x', expand=False, padx=10, pady=10, side='top')
-        who_listbox = tk.Listbox(who_frame, height=10)
+        who_listbox = tk.Listbox(
+            who_frame,
+            height=10,
+            exportselection=False,
+        )
         who_listbox.pack(side='left', anchor='w', fill='none', expand=True)
         
         who_lock_button = ttk.Button(who_frame, text="Unlock")
@@ -83,3 +170,26 @@ class Creators:
         
         ref.who_listbox = who_listbox
         ref.who_lock_button = who_lock_button
+
+    @staticmethod
+    def create_settings_other_frame(ref):
+        other_frame = ttk.LabelFrame(ref.settings_tab, text="Other Settings")
+        other_frame.pack(fill='x', expand=False, padx=10, pady=10, side='top')
+        
+        other_row = ttk.Frame(other_frame)
+        other_row.pack(fill='x', expand=False, padx=5, pady=5)
+        blender_file_path_entry = ttk.Entry(other_row)
+        blender_file_path_entry.pack(side='left', fill='x', expand=True)
+        choose_blender_file_path_button = ttk.Button(other_row, text="Blender Executable")
+        choose_blender_file_path_button.pack(side='right', padx=5)
+        
+        status_checks_row = ttk.Frame(other_frame)
+        status_checks_row.pack(fill='x', expand=False, padx=5, pady=5)
+        status_checks = {
+            "Blender connection": ttk.Label(status_checks_row, text="Blender connection", background="green"),
+            "Network connection": ttk.Label(status_checks_row, text="Network connection", background="green"),
+            "Database connection": ttk.Label(status_checks_row, text="Database connection", background="green"),
+        }
+        for label in status_checks.values():
+            label.pack(side='left', padx=5, pady=5, fill='x', expand=True)
+        
