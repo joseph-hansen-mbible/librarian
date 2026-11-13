@@ -5,62 +5,9 @@ from objects.Project import Project, Status
 from whoami import Who
 from methods.Populators import Populators
 from methods.Creators import Creators
-import tkinter.font as tkFont
+from objects.References import References
 
 test_project = None
-
-class References:
-    def __init__(self):
-        pass
-    
-    def increase_font_size(self):
-        print("increase")
-        ref = self
-        ref.command_font.config(size=ref.command_font.actual()['size'] + 2)
-        ref.treeview_heading_font.config(size=ref.treeview_heading_font.actual()['size'] + 2)
-        ref.treeview_font.config(size=ref.treeview_font.actual()['size'] + 2)
-        ref.label_font.config(size=ref.treeview_font.actual()['size'] + 2)
-        
-        treeview_heading_adjustment = (ref.treeview_heading_font.actual()['size'] - 10) * 10
-        
-        ref.recent_files_treeview.column("Status", width=50 + treeview_heading_adjustment)
-        ref.recent_files_treeview.column("Date", width=100 + treeview_heading_adjustment)
-        ref.recent_files_treeview.column("Artist", width=110 + treeview_heading_adjustment)
-        ref.current_files_treeview.column("Artist", width=110 + treeview_heading_adjustment)
-        
-        window_height = ref.main_window.winfo_screenheight()
-        screen_height = ref.main_window.winfo_screenheight()
-        center_y = int(screen_height/2 - window_height / 4)
-        ref.main_window.geometry(f'{1000+(treeview_heading_adjustment * 2)}x{700}+{200}+{center_y}')
-        ref.main_window.minsize(500, 400)
-    
-    def decrease_font_size(self):
-        ref = self
-        print("decrease")
-        ref.command_font.config(size=ref.command_font.actual()['size'] - 2)
-        ref.treeview_heading_font.config(size=ref.treeview_heading_font.actual()['size'] - 2)
-        ref.treeview_font.config(size=ref.treeview_font.actual()['size'] - 2)
-        ref.label_font.config(size=ref.treeview_font.actual()['size'] - 2)
-        
-        treeview_heading_adjustment = (ref.treeview_heading_font.actual()['size'] - 10) * 10
-        
-        ref.recent_files_treeview.column("Status", width=50 + treeview_heading_adjustment)
-        ref.recent_files_treeview.column("Date", width=100 + treeview_heading_adjustment)
-        ref.recent_files_treeview.column("Artist", width=110 + treeview_heading_adjustment)
-        ref.current_files_treeview.column("Artist", width=110 + treeview_heading_adjustment)
-    
-    def setup_fonts(self):
-        ref = self
-        style = ttk.Style(ref.main_window)
-        ref.command_font = tkFont.Font(family="Helvetica", size=14, weight="bold")
-        style.configure("CommandBar.TLabel", font=ref.command_font)
-        ref.treeview_heading_font = tkFont.Font(family="Helvetica", size=13, weight="normal")
-        style.configure("Treeview.Heading", font=ref.treeview_heading_font)
-        ref.treeview_font = tkFont.Font(family="Helvetica", size=11, weight="normal")
-        style.configure('Treeview', font=ref.treeview_font)
-        ref.label_font = tkFont.Font(family="Helvetica", size=11, weight="normal")
-        style.configure('TLabelframe.Label', font=ref.label_font)
-        
 
 def create_test_project():
     # Create a test project with a specific status
@@ -112,6 +59,9 @@ def main():
     Populators.populate_project_listbox(ref, [test_project])
     Populators.populate_current_files_treeview(ref)
     Populators.populate_recent_files_treeview(ref)
+    
+    # last
+    ref.load_persistence()
 
     def focus_project_listbox_on_settings(_event):
         if ref.tabs_container.select() == str(ref.settings_tab):

@@ -7,12 +7,7 @@ from objects.Project import Project, Status
 class Creators:
     @staticmethod
     def setup_main_window(root):
-        root.title("Art Team Librarian")
-
-        window_height = root.winfo_screenheight()
-        screen_height = root.winfo_screenheight()
-        center_y = int(screen_height/2 - window_height / 4)
-        root.geometry(f'{1000}x{700}+{200}+{center_y}')
+        root.title("Fossa - MOTB Art Team")
         root.minsize(500, 400)
         
         return root
