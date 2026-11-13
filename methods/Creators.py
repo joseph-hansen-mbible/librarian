@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
+from pathlib import Path
 
 from objects.Project import Project, Status
 
@@ -8,14 +9,11 @@ class Creators:
     def setup_main_window(root):
         root.title("Art Team Librarian")
 
-        window_width = root.winfo_screenwidth()
         window_height = root.winfo_screenheight()
-        screen_width = root.winfo_screenwidth()
         screen_height = root.winfo_screenheight()
-        center_x = int(screen_width/2 - window_width / 6)
-        center_y = int(screen_height/2 - window_height / 3)
-        root.geometry(f'{int(window_width/3)}x{int(window_height/3)}+{center_x}+{center_y}')
-        root.minsize(800, 800)
+        center_y = int(screen_height/2 - window_height / 4)
+        root.geometry(f'{1000}x{700}+{200}+{center_y}')
+        root.minsize(500, 400)
         
         return root
 
@@ -35,14 +33,14 @@ class Creators:
     @staticmethod
     def create_command_entry_frame(parent):
         command_bar_frame = ttk.Frame(parent)
-        command_bar_frame.pack(fill='x', expand=False, padx=10, pady=40, side='top')
+        command_bar_frame.pack(fill='none', expand=False, padx=10, pady=40, side='top', anchor='center')
         return command_bar_frame
     
     @staticmethod
     def fill_command_entry_frame(ref):
         # "I want to..." label + action optionbox + "in" + project optionbox + "for" + scene optionbox + shot optionbox
         style = ttk.Style(ref.command_bar_frame)
-        command_font = ("Helvetica", 14, "bold")
+        command_font = ref.command_font
         style.configure("CommandBar.TLabel", font=command_font)
         style.configure("CommandBar.TMenubutton", font=command_font)
         style.configure("Go.TButton", font=command_font, padding=(12, 6))
@@ -110,6 +108,79 @@ class Creators:
             style="Go.TButton",
         )
         ref.command_execute_button.pack(side='left', padx=5)
+        
+    @staticmethod
+    def create_current_files_frame(parent):
+        current_files_frame = ttk.Frame(parent)
+        current_files_frame.pack(fill='both', expand=True, padx=10, pady=10, side='left', anchor='w')
+        current_files_label = ttk.Label(current_files_frame, text="Files Being Worked On", font=parent.ref.command_font)
+        current_files_label.pack(side='top', pady=5)
+        return current_files_frame
+    
+    @staticmethod
+    def create_recent_files_frame(parent):
+        recent_files_frame = ttk.Frame(parent)
+        recent_files_frame.pack(fill='both', expand=True, padx=10, pady=10, side='left', anchor='e')
+        recent_files_label = ttk.Label(recent_files_frame, text="Recent Files", font=parent.ref.command_font)
+        recent_files_label.pack(side='top', pady=5)
+        return recent_files_frame
+    
+    @staticmethod
+    def create_current_files_treeview(ref):
+        columns = ("File", "Artist")
+        treeview = ttk.Treeview(
+            ref.current_files_frame,
+            columns=columns,
+            show=("tree", "headings"),
+            selectmode="none",
+            takefocus=False,
+        )
+        treeview.state(["disabled"])
+        treeview.heading("#0", text="")
+        treeview.column("#0", width=40, minwidth=40, stretch=False, anchor="center")
+        treeview.column("Artist", width=110)
+        treeview.column("File", stretch=True)
+        for column in columns:
+            treeview.heading(column, text=column)
+            treeview.column(column, anchor="w")
+
+        v_scrollbar = ttk.Scrollbar(ref.current_files_frame, orient=tk.VERTICAL, command=treeview.yview)
+        
+        treeview.configure(yscrollcommand=v_scrollbar.set)
+        treeview.pack(side='left', fill='both', expand=True, anchor='w')
+        v_scrollbar.pack(side='right', fill='y')
+        
+        ref.current_files_treeview = treeview
+    
+    @staticmethod
+    def create_recent_files_treeview(ref):
+        columns = ("File", "Artist", "Date", "Status")
+        treeview = ttk.Treeview(
+            ref.recent_files_frame,
+            columns=columns,
+            show=("tree", "headings"),
+            selectmode="none",
+            takefocus=False,
+        )
+        treeview.state(["disabled"])
+        treeview.heading("#0", text="")
+        treeview.column("#0", width=40, minwidth=40, stretch=False, anchor="center")
+        treeview.column("Status", width=50)
+        treeview.column("Date", width=100)
+        treeview.column("Artist", width=110)
+        treeview.column("File", stretch=True)
+        for column in columns:
+            treeview.heading(column, text=column)
+            treeview.column(column, anchor="w")
+
+        v_scrollbar = ttk.Scrollbar(ref.recent_files_frame, orient=tk.VERTICAL, command=treeview.yview)
+        
+        treeview.configure(yscrollcommand=v_scrollbar.set)
+        treeview.pack(side='right', fill='both', expand=True, anchor='e')
+        v_scrollbar.pack(side='right', fill='y')
+        
+        ref.recent_files_treeview = treeview
+
 
     @staticmethod
     def create_tab_settings(notebook):
@@ -192,4 +263,10 @@ class Creators:
         }
         for label in status_checks.values():
             label.pack(side='left', padx=5, pady=5, fill='x', expand=True)
+        
+        increase_button = tk.Button(ref.settings_tab, text="Increase Font Size", command=ref.increase_font_size)
+        increase_button.pack()
+
+        decrease_button = tk.Button(ref.settings_tab, text="Decrease Font Size", command=ref.decrease_font_size)
+        decrease_button.pack()
         

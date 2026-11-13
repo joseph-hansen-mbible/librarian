@@ -383,9 +383,14 @@ namespace eval ttk::theme::breeze-dark {
         # Treeview
         ttk::style configure Treeview -background $colors(-controlbg)
         ttk::style configure Treeview.Item -padding {2 0 0 0}
+        ttk::style configure Treeview.Heading \
+            -foreground $colors(-fg) \
+            -font {TkDefaultFont 10 bold}
+        ttk::style map Treeview.Heading \
+            -foreground [list disabled $colors(-fg)]
         ttk::style map Treeview \
             -background [list selected $colors(-selectbg)] \
-            -foreground [list selected $colors(-selectfg)]
+            -foreground [list disabled $colors(-fg) selected $colors(-selectfg)]
         
         # Scrollbar 
         bind TScrollbar <MouseWheel> {
