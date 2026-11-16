@@ -4,7 +4,8 @@ from pathlib import Path
 from objects.Project import Project, Status
 from whoami import Who
 from methods.Populators import Populators
-from methods.Creators import Creators
+from methods.Creators import CreatorsMaintab as Creators
+from methods.CreatorsSettings import CreatorsSettings
 from objects.References import References
 
 test_project = None
@@ -52,9 +53,9 @@ def main():
     ref.all_files_tab = Creators.create_tab_all_files(ref.tabs_container)
     ref.all_files_tab.ref = ref
 
-    ref.settings_tab = Creators.create_tab_settings(ref.tabs_container)
+    ref.settings_tab = CreatorsSettings.create_tab_settings(ref.tabs_container)
     
-    ref.projects_frame = Creators.create_settings_projects_frame(ref)
+    ref.projects_frame = CreatorsSettings.create_settings_projects_frame(ref)
     
     ref.file_lists_frame = Creators.create_file_lists_frame(ref.main_tab)
     ref.recent_files_frame = Creators.create_recent_files_frame(ref.file_lists_frame)
@@ -76,8 +77,8 @@ def main():
     Creators.create_locks_treeview(ref)
     Creators.create_locks_details_buttons(ref)
     
-    Creators.create_settings_who_frame(ref)
-    Creators.create_settings_other_frame(ref)
+    CreatorsSettings.create_settings_who_frame(ref)
+    CreatorsSettings.create_settings_other_frame(ref)
     
     Populators.populate_who_listbox(ref, who)
     Populators.populate_project_listbox(ref, [test_project])
