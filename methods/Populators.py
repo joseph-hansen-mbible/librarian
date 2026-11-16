@@ -1,5 +1,5 @@
-from pathlib import Path
 import tkinter as tk
+from tkinter import ttk
 
 class Populators:
     @staticmethod
@@ -21,20 +21,38 @@ class Populators:
             ref.project_listbox.activate(0)
     
     @staticmethod
-    def populate_current_files_treeview(ref):
-        ref.current_files_treeview.insert("", "end", values=("File1.blend", "Joseph Hansen"), image=ref.lock_icon)
+    def populate_current_files_table(ref):
+        row = ("File1.blend", "Joseph Hansen")
+        for column, value in enumerate(row):
+            ttk.Label(
+                ref.current_files_table,
+                text=value,
+                style="Gray.TLabel",
+            ).grid(
+                row=ref.current_files_table_next_row,
+                column=column,
+                sticky="w",
+                padx=(12, 8),
+                pady=2,
+            )
+        ref.current_files_table_next_row += 1
     
     @staticmethod
     def populate_recent_files_treeview(ref):
-        lock_icon_path = Path(__file__).resolve().parent.parent / "assets" / "lock.png"
-        unlock_icon_path = Path(__file__).resolve().parent.parent / "assets" / "unlock.png"
-        ref.lock_icon = tk.PhotoImage(file=str(lock_icon_path)).subsample(16, 16)
-        ref.unlock_icon = tk.PhotoImage(file=str(unlock_icon_path)).subsample(16, 16)
-        ref.recent_files_treeview.insert("", "end", values=("File1.blend", "Joseph Hansen", "2023-10-01", "SSOT"), image=ref.lock_icon)
-        ref.recent_files_treeview.insert("", "end", values=("File2.blend", "Joseph Hansen", "2023-10-01", "WIP"))
+        ref.recent_files_treeview.insert(
+            "",
+            "end",
+            values=("File1.blend", "Joseph Hansen", "2023-10-01", "SSOT"),
+        )
+        ref.recent_files_treeview.insert(
+            "",
+            "end",
+            values=("File2.blend", "Joseph Hansen", "2023-10-01", "WIP"),
+        )
     
     @staticmethod
     def populate_locks_treeview(ref):
         # ("Project", "Scene", "Shot", "Version", "Type", "Status", "Checklist", "UA")
-        ref.locks_treeview.insert("", "end", values=("Noah", "1", "1", "1", "CharAnimGraybox", "WIP", "0/5", "0"))
+        item = ref.locks_treeview.insert("", "end", values=("Noah", "1", "1", "1", "CharAnimGraybox", "WIP", "0/5", "0"))
+        ref.all_files_item_ids.append(item)
         

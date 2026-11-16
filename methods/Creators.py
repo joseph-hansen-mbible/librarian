@@ -22,6 +22,13 @@ class Creators:
         main_tab.pack(fill='both', expand=True)
         notebook.add(main_tab, text='Main')
         return main_tab
+
+    @staticmethod
+    def create_tab_all_files(notebook):
+        all_files_tab = ttk.Frame(notebook)
+        all_files_tab.pack(fill='both', expand=True)
+        notebook.add(all_files_tab, text='All Files')
+        return all_files_tab
     
     @staticmethod
     def create_command_entry_frame(parent):
@@ -105,25 +112,98 @@ class Creators:
     @staticmethod
     def create_current_files_frame(parent):
         current_files_frame = ttk.Frame(parent)
-        current_files_frame.pack(fill='x', expand=True, padx=5, pady=5, side='left', anchor='n')
-        current_files_label = ttk.Label(current_files_frame, text="Files Being Worked On", font=parent.ref.command_font)
-        current_files_label.pack(side='top', pady=5)
+        current_files_frame.pack(fill='both', expand=True, side='left', padx=5, pady=5)
         return current_files_frame
+
+    @staticmethod
+    def create_current_files_header(ref):
+        ttk.Label(
+            ref.current_files_frame,
+            text="Currently Checked Out",
+            font=ref.command_font,
+            anchor='w',
+        ).pack(side='top', fill='x', anchor='w', pady=5)
     
     @staticmethod
     def create_recent_files_frame(parent):
         recent_files_frame = ttk.Frame(parent)
-        recent_files_frame.pack(fill='x', expand=True, padx=5, pady=5, side='left', anchor='n')
-        recent_files_label = ttk.Label(recent_files_frame, text="Recent Files", font=parent.ref.command_font)
-        recent_files_label.pack(side='top', pady=5)
+        recent_files_frame.grid(row=0, column=1, sticky='nsew', padx=(2, 5), pady=5)
         return recent_files_frame
+
+    @staticmethod
+    def create_recent_files_header(ref):
+        ttk.Label(
+            ref.recent_files_frame,
+            text="Recent Files",
+            font=ref.command_font,
+            anchor='w',
+        ).pack(side='top', fill='x', pady=5)
+
+    @staticmethod
+    def create_recent_files_tree_frame(ref):
+        tree_frame = ttk.Frame(ref.recent_files_frame)
+        tree_frame.pack(side='top', fill='x')
+        return tree_frame
+
+    @staticmethod
+    def create_recent_files_note_frame(ref):
+        notes_frame = ttk.Frame(ref.recent_files_frame)
+        notes_frame.pack(side='top', fill='both', expand=True, pady=(5, 0))
+
+        ttk.Label(
+            notes_frame,
+            text="Notes",
+            font=ref.treeview_heading_font_small,
+            anchor='w',
+        ).pack(side='top', fill='x', pady=(0, 2))
+
+        notes_text = tk.Text(
+            notes_frame,
+            height=4,
+            wrap='word',
+            font=ref.treeview_font,
+            state='disabled',
+            exportselection=False,
+            takefocus=False,
+            bg="#2B2D32",
+            
+        )
+        notes_scrollbar = ttk.Scrollbar(
+            notes_frame,
+            orient=tk.VERTICAL,
+            command=notes_text.yview,
+        )
+        notes_text.configure(yscrollcommand=notes_scrollbar.set)
+        notes_text.pack(side='left', fill='both', expand=True)
+        notes_scrollbar.pack(side='right', fill='y')
+
+        ref.recent_files_notes_text = notes_text
+
+    @staticmethod
+    def create_recent_files_open_button(ref):
+        ref.open_recent_file_button = ttk.Button(
+            ref.recent_files_frame,
+            text="Open",
+            style="Go.TButton",
+        )
+        ref.open_recent_file_button.pack(side='bottom', fill='x', pady=(5, 0))
 
     @staticmethod
     def create_file_lists_frame(parent):
         file_lists_frame = ttk.Frame(parent)
-        file_lists_frame.pack(fill='x', expand=False, side='top')
+        file_lists_frame.pack(fill='both', expand=True, side='top')
+        file_lists_frame.grid_columnconfigure(0, weight=2, uniform="file_lists")
+        file_lists_frame.grid_columnconfigure(1, weight=1, uniform="file_lists")
+        file_lists_frame.grid_rowconfigure(0, weight=1)
         file_lists_frame.ref = parent.ref
         return file_lists_frame
+
+    @staticmethod
+    def create_main_content_left_frame(parent):
+        left_frame = ttk.Frame(parent)
+        left_frame.grid(row=0, column=0, sticky='nsew', padx=(5, 2), pady=5)
+        left_frame.ref = parent.ref
+        return left_frame
 
     @staticmethod
     def create_locks_frame(parent):
@@ -154,16 +234,20 @@ class Creators:
             ref.locks_details_frame,
             text="Open SSOT Checklist",
         )
-        ref.locks_details_type_var = tk.StringVar(value="Type")
-        ref.locks_details_type = ttk.OptionMenu(ref.locks_details_frame, ref.locks_details_type_var, "Type", *["Character Animation + Graybox"])
         ref.open_file_button.pack(pady=10, fill='x', expand=True)
-        ref.locks_details_type.pack(pady=5, fill='x', expand=True)
         ref.view_ssot_checklist_button.pack(pady=5, fill='x', expand=True)
         ref.request_unlock_ssot_button.pack(pady=5, fill='x', expand=True)
     
     @staticmethod
     def create_locks_treeview(ref):
         columns = ("Project", "Scene", "Shot", "Version", "Type", "Status", "Checklist", "UA")
+        filter_frame = ttk.Frame(ref.locks_frame)
+        filter_frame.pack(fill='x', side='top', padx=5, pady=(0, 5))
+        ttk.Label(filter_frame, text="Filter:").pack(side='left', padx=(0, 5))
+        ref.all_files_filter_var = tk.StringVar()
+        ref.all_files_filter_entry = ttk.Entry(filter_frame, textvariable=ref.all_files_filter_var)
+        ref.all_files_filter_entry.pack(side='left', fill='x', expand=True)
+
         treeview = ttk.Treeview(
             ref.locks_frame,
             columns=columns,
@@ -180,7 +264,13 @@ class Creators:
         treeview.column("UA", width=50, stretch=False)
         treeview.column("Version", width=60, stretch=False)
         for column in columns:
-            treeview.heading(column, text=column)
+            treeview.heading(
+                column,
+                text=column,
+                command=lambda _column=column: Creators.sort_all_files_treeview(
+                    ref, _column, False
+                ),
+            )
             treeview.column(column, anchor="w")
 
         v_scrollbar = ttk.Scrollbar(ref.locks_frame, orient=tk.VERTICAL, command=treeview.yview)
@@ -190,64 +280,115 @@ class Creators:
         v_scrollbar.pack(side='right', fill='y')
         
         ref.locks_treeview = treeview
+        ref.all_files_item_ids = []
+        ref.all_files_detached_item_ids = set()
+        ref.all_files_filter_var.trace_add(
+            "write",
+            lambda *_: Creators.filter_all_files_treeview(ref),
+        )
     
     @staticmethod
-    def create_current_files_treeview(ref):
-        columns = ("File", "Artist")
-        treeview = ttk.Treeview(
-            ref.current_files_frame,
-            columns=columns,
-            show=("tree", "headings"),
-            selectmode="none",
-            takefocus=False,
-            height=5
-        )
-        treeview.state(["disabled"])
-        treeview.heading("#0", text="")
-        treeview.column("#0", width=40, minwidth=40, stretch=False, anchor="center")
-        treeview.column("Artist", width=110)
-        treeview.column("File", stretch=True)
-        for column in columns:
-            treeview.heading(column, text=column)
-            treeview.column(column, anchor="w")
+    def create_file_text_table(parent, ref, columns, column_weights):
+        table = ttk.Frame(parent)
+        table.pack(fill='both', expand=True, padx=5, pady=5)
+        for index, column in enumerate(columns):
+            table.grid_columnconfigure(index, weight=column_weights[index])
+            ttk.Label(
+                table,
+                text=column,
+                font=ref.treeview_heading_font_small,
+            ).grid(row=0, column=index, sticky='w', padx=(12, 8), pady=(8, 2))
+        return table
 
-        v_scrollbar = ttk.Scrollbar(ref.current_files_frame, orient=tk.VERTICAL, command=treeview.yview)
-        
-        treeview.configure(yscrollcommand=v_scrollbar.set)
-        treeview.pack(side='left', fill='both', expand=True, anchor='w')
-        v_scrollbar.pack(side='right', fill='y')
-        
-        ref.current_files_treeview = treeview
+    @staticmethod
+    def create_current_files_table(ref):
+        columns = ("File", "Artist")
+        ref.current_files_table = Creators.create_file_text_table(
+            ref.current_files_frame,
+            ref,
+            columns,
+            (1, 1),
+        )
+        ref.current_files_table_next_row = 1
     
     @staticmethod
     def create_recent_files_treeview(ref):
         columns = ("File", "Artist", "Date", "Status")
         treeview = ttk.Treeview(
-            ref.recent_files_frame,
+            ref.recent_files_tree_frame,
             columns=columns,
-            show=("tree", "headings"),
-            selectmode="none",
-            takefocus=False,
-            height=5
+            show="headings",
+            selectmode="browse",
+            height=8,
         )
-        treeview.state(["disabled"])
-        treeview.heading("#0", text="")
-        treeview.column("#0", width=40, minwidth=40, stretch=False, anchor="center")
-        treeview.column("Status", width=50)
-        treeview.column("Date", width=100)
-        treeview.column("Artist", width=110)
-        treeview.column("File", stretch=True)
+        treeview.column("Status", width=60, minwidth=60, stretch=False)
+        treeview.column("Date", width=90, minwidth=90, stretch=False)
+        treeview.column("Artist", width=105, minwidth=85, stretch=True)
+        treeview.column("File", width=130, minwidth=100, stretch=True)
         for column in columns:
             treeview.heading(column, text=column)
             treeview.column(column, anchor="w")
 
-        v_scrollbar = ttk.Scrollbar(ref.recent_files_frame, orient=tk.VERTICAL, command=treeview.yview)
-        
+        v_scrollbar = ttk.Scrollbar(
+            ref.recent_files_tree_frame,
+            orient=tk.VERTICAL,
+            command=treeview.yview,
+        )
         treeview.configure(yscrollcommand=v_scrollbar.set)
-        treeview.pack(side='right', fill='both', expand=True, anchor='e')
+        treeview.pack(side='left', fill='x', expand=True, anchor='w')
         v_scrollbar.pack(side='right', fill='y')
-        
+
         ref.recent_files_treeview = treeview
+
+    @staticmethod
+    def filter_all_files_treeview(ref):
+        treeview = ref.locks_treeview
+        query = ref.all_files_filter_var.get().casefold()
+        previously_detached = ref.all_files_detached_item_ids.copy()
+        visible_items = set(treeview.get_children(""))
+        all_items = previously_detached | visible_items
+        ref.all_files_detached_item_ids.clear()
+
+        for item in ref.all_files_item_ids:
+            if item not in all_items:
+                continue
+
+            values = treeview.item(item, "values")
+            matches = not query or query in " ".join(str(value) for value in values).casefold()
+            if matches:
+                if item in previously_detached:
+                    treeview.reattach(item, "", "end")
+                else:
+                    treeview.move(item, "", "end")
+            else:
+                if item not in previously_detached:
+                    treeview.detach(item)
+                ref.all_files_detached_item_ids.add(item)
+
+    @staticmethod
+    def sort_all_files_treeview(ref, column, reverse):
+        treeview = ref.locks_treeview
+
+        # Restore filtered rows so sorting always applies to the complete table.
+        attached_items = set(treeview.get_children(""))
+        for item in ref.all_files_item_ids:
+            if item not in attached_items:
+                treeview.reattach(item, "", "end")
+        ref.all_files_detached_item_ids.clear()
+
+        items = [(treeview.set(item, column), item) for item in treeview.get_children("")]
+        items.sort(reverse=reverse)
+        for index, (_, item) in enumerate(items):
+            treeview.move(item, "", index)
+
+        ref.all_files_item_ids[:] = [item for _, item in items]
+        Creators.filter_all_files_treeview(ref)
+        treeview.heading(
+            column,
+            command=lambda _column=column: Creators.sort_all_files_treeview(
+                ref, _column, not reverse
+            ),
+        )
 
 
     @staticmethod
