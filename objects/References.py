@@ -44,6 +44,9 @@ class References:
         ref.treeview_font.config(size=ref.treeview_font.actual()['size'] + 2)
         ref.label_font.config(size=ref.treeview_font.actual()['size'] + 2)
         
+        ref.small_treeview_font.config(size=ref.small_treeview_font.actual()['size'] + 2)
+        ref.treeview_heading_font_small.config(size=ref.treeview_heading_font_small.actual()['size'] + 2)
+        
         treeview_heading_adjustment = (ref.treeview_heading_font.actual()['size'] - 10) * 10
         
         ref.recent_files_treeview.column("Status", width=50 + treeview_heading_adjustment)
@@ -51,11 +54,18 @@ class References:
         ref.recent_files_treeview.column("Artist", width=110 + treeview_heading_adjustment)
         ref.current_files_treeview.column("Artist", width=110 + treeview_heading_adjustment)
         
+        ref.locks_treeview.column("Status", width=50 + treeview_heading_adjustment, stretch=False)
+        ref.locks_treeview.column("Checklist", width=100 + treeview_heading_adjustment, stretch=False)
+        ref.locks_treeview.column("UA", width=50 + treeview_heading_adjustment, stretch=False)
+        ref.locks_treeview.column("Scene", width=50 + treeview_heading_adjustment, stretch=False)
+        ref.locks_treeview.column("Shot", width=50 + treeview_heading_adjustment, stretch=False)
+        ref.locks_treeview.column("Version", width=60 + treeview_heading_adjustment, stretch=False)
+        
         window_height = ref.main_window.winfo_screenheight()
         screen_height = ref.main_window.winfo_screenheight()
         center_y = int(screen_height/2 - window_height / 4)
-        ref.main_window.geometry(f'{int(1000+(treeview_heading_adjustment * 2.2))}x{700}+{200}+{center_y}')
-        ref.main_window.minsize(500, 400)
+        ref.main_window.geometry(f'{int(1200+(treeview_heading_adjustment * 2.2))}x{700}+{200}+{center_y}')
+        ref.main_window.minsize(1200, 400)
         
         ref.save_font_size(1)
     
@@ -66,6 +76,9 @@ class References:
         ref.treeview_font.config(size=ref.treeview_font.actual()['size'] - 2)
         ref.label_font.config(size=ref.treeview_font.actual()['size'] - 2)
         
+        ref.small_treeview_font.config(size=ref.small_treeview_font.actual()['size'] + 2)
+        ref.treeview_heading_font_small.config(size=ref.treeview_heading_font_small.actual()['size'] + 2)
+        
         treeview_heading_adjustment = (ref.treeview_heading_font.actual()['size'] - 10) * 10
         
         ref.recent_files_treeview.column("Status", width=50 + treeview_heading_adjustment)
@@ -73,11 +86,19 @@ class References:
         ref.recent_files_treeview.column("Artist", width=110 + treeview_heading_adjustment)
         ref.current_files_treeview.column("Artist", width=110 + treeview_heading_adjustment)
         
+        ref.locks_treeview.column("Status", width=50 + treeview_heading_adjustment, stretch=False)
+        ref.locks_treeview.column("Checklist", width=100 + treeview_heading_adjustment, stretch=False)
+        ref.locks_treeview.column("UA", width=50 + treeview_heading_adjustment, stretch=False)
+        ref.locks_treeview.column("Scene", width=50 + treeview_heading_adjustment, stretch=False)
+        ref.locks_treeview.column("Shot", width=50 + treeview_heading_adjustment, stretch=False)
+        ref.locks_treeview.column("Version", width=60 + treeview_heading_adjustment, stretch=False)
+        
+        
         window_height = ref.main_window.winfo_screenheight()
         screen_height = ref.main_window.winfo_screenheight()
         center_y = int(screen_height/2 - window_height / 4)
         ref.main_window.geometry(f'{int(1000+(treeview_heading_adjustment * 2.2))}x{700}+{200}+{center_y}')
-        ref.main_window.minsize(500, 400)
+        ref.main_window.minsize(1200, 400)
         
         ref.save_font_size(-1)
     
@@ -88,7 +109,11 @@ class References:
         style.configure("CommandBar.TLabel", font=ref.command_font)
         ref.treeview_heading_font = tkFont.Font(family="Helvetica", size=13, weight="normal")
         style.configure("Treeview.Heading", font=ref.treeview_heading_font)
+        ref.treeview_heading_font_small = tkFont.Font(family="Helvetica", size=11, weight="normal")
+        style.configure("Small.Treeview.Heading", font=ref.treeview_heading_font)
         ref.treeview_font = tkFont.Font(family="Helvetica", size=11, weight="normal")
         style.configure('Treeview', font=ref.treeview_font)
+        ref.small_treeview_font = tkFont.Font(family="Helvetica", size=11, weight="normal")
+        style.configure('Small.Treeview', font=ref.small_treeview_font)
         ref.label_font = tkFont.Font(family="Helvetica", size=11, weight="normal")
         style.configure('TLabelframe.Label', font=ref.label_font)

@@ -22,8 +22,6 @@ class Populators:
     
     @staticmethod
     def populate_current_files_treeview(ref):
-        lock_icon_path = Path(__file__).resolve().parent.parent / "assets" / "lock.png"
-        ref.lock_icon = tk.PhotoImage(file=str(lock_icon_path)).subsample(16, 16)
         ref.current_files_treeview.insert("", "end", values=("File1.blend", "Joseph Hansen"), image=ref.lock_icon)
     
     @staticmethod
@@ -34,3 +32,9 @@ class Populators:
         ref.unlock_icon = tk.PhotoImage(file=str(unlock_icon_path)).subsample(16, 16)
         ref.recent_files_treeview.insert("", "end", values=("File1.blend", "Joseph Hansen", "2023-10-01", "SSOT"), image=ref.lock_icon)
         ref.recent_files_treeview.insert("", "end", values=("File2.blend", "Joseph Hansen", "2023-10-01", "WIP"))
+    
+    @staticmethod
+    def populate_locks_treeview(ref):
+        # ("Project", "Scene", "Shot", "Version", "Type", "Status", "Checklist", "UA")
+        ref.locks_treeview.insert("", "end", values=("Noah", "1", "1", "1", "CharAnimGraybox", "WIP", "0/5", "0"))
+        

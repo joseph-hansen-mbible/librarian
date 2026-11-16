@@ -8,14 +8,12 @@ class Creators:
     @staticmethod
     def setup_main_window(root):
         root.title("Fossa - MOTB Art Team")
-        root.minsize(500, 400)
-        
         return root
 
     @staticmethod
     def create_tab_container(window):
         notebook = ttk.Notebook(window)
-        notebook.pack(pady=10, expand=True, fill='both')
+        notebook.pack(pady=5, expand=True, fill='both')
         return notebook
 
     @staticmethod
@@ -28,7 +26,7 @@ class Creators:
     @staticmethod
     def create_command_entry_frame(parent):
         command_bar_frame = ttk.Frame(parent)
-        command_bar_frame.pack(fill='none', expand=False, padx=10, pady=40, side='top', anchor='center')
+        command_bar_frame.pack(fill='none', expand=False, padx=5, pady=40, side='top', anchor='center')
         return command_bar_frame
     
     @staticmethod
@@ -107,7 +105,7 @@ class Creators:
     @staticmethod
     def create_current_files_frame(parent):
         current_files_frame = ttk.Frame(parent)
-        current_files_frame.pack(fill='both', expand=True, padx=10, pady=10, side='left', anchor='w')
+        current_files_frame.pack(fill='x', expand=True, padx=5, pady=5, side='left', anchor='n')
         current_files_label = ttk.Label(current_files_frame, text="Files Being Worked On", font=parent.ref.command_font)
         current_files_label.pack(side='top', pady=5)
         return current_files_frame
@@ -115,10 +113,83 @@ class Creators:
     @staticmethod
     def create_recent_files_frame(parent):
         recent_files_frame = ttk.Frame(parent)
-        recent_files_frame.pack(fill='both', expand=True, padx=10, pady=10, side='left', anchor='e')
+        recent_files_frame.pack(fill='x', expand=True, padx=5, pady=5, side='left', anchor='n')
         recent_files_label = ttk.Label(recent_files_frame, text="Recent Files", font=parent.ref.command_font)
         recent_files_label.pack(side='top', pady=5)
         return recent_files_frame
+
+    @staticmethod
+    def create_file_lists_frame(parent):
+        file_lists_frame = ttk.Frame(parent)
+        file_lists_frame.pack(fill='x', expand=False, side='top')
+        file_lists_frame.ref = parent.ref
+        return file_lists_frame
+
+    @staticmethod
+    def create_locks_frame(parent):
+        locks_frame = ttk.Frame(parent)
+        locks_frame.pack(fill='both', expand=True, side='left', padx=5, pady=5)
+        locks_frame_label = ttk.Label(locks_frame, text="SSOT/WIP", font=parent.ref.command_font, anchor='n')
+        locks_frame_label.pack(side='top', pady=5)
+        return locks_frame
+
+    @staticmethod
+    def create_locks_details_frame(parent):
+        locks_details_frame = ttk.Frame(parent)
+        locks_details_frame.pack(fill='x', expand=True, side='right', padx=5, pady=5, anchor='n')
+        return locks_details_frame
+    
+    @staticmethod
+    def create_locks_details_buttons(ref):
+        ref.open_file_button = ttk.Button(
+            ref.locks_details_frame,
+            text="Open File",
+            style="Go.TButton",
+        )
+        ref.request_unlock_ssot_button = ttk.Button(
+            ref.locks_details_frame,
+            text="Request Unlock",
+        )
+        ref.view_ssot_checklist_button = ttk.Button(
+            ref.locks_details_frame,
+            text="Open SSOT Checklist",
+        )
+        ref.locks_details_type_var = tk.StringVar(value="Type")
+        ref.locks_details_type = ttk.OptionMenu(ref.locks_details_frame, ref.locks_details_type_var, "Type", *["Character Animation + Graybox"])
+        ref.open_file_button.pack(pady=10, fill='x', expand=True)
+        ref.locks_details_type.pack(pady=5, fill='x', expand=True)
+        ref.view_ssot_checklist_button.pack(pady=5, fill='x', expand=True)
+        ref.request_unlock_ssot_button.pack(pady=5, fill='x', expand=True)
+    
+    @staticmethod
+    def create_locks_treeview(ref):
+        columns = ("Project", "Scene", "Shot", "Version", "Type", "Status", "Checklist", "UA")
+        treeview = ttk.Treeview(
+            ref.locks_frame,
+            columns=columns,
+            show="headings",
+        )
+        
+        treeview.config(style="Small.Treeview.Heading")
+        treeview.config(style="Small.Treeview")
+        
+        treeview.column("Status", width=100, stretch=False)
+        treeview.column("Scene", width=50, stretch=False)
+        treeview.column("Shot", width=50, stretch=False)
+        treeview.column("Checklist", width=100, stretch=False)
+        treeview.column("UA", width=50, stretch=False)
+        treeview.column("Version", width=60, stretch=False)
+        for column in columns:
+            treeview.heading(column, text=column)
+            treeview.column(column, anchor="w")
+
+        v_scrollbar = ttk.Scrollbar(ref.locks_frame, orient=tk.VERTICAL, command=treeview.yview)
+        
+        treeview.configure(yscrollcommand=v_scrollbar.set)
+        treeview.pack(side='left', fill='both', expand=True, anchor='w')
+        v_scrollbar.pack(side='right', fill='y')
+        
+        ref.locks_treeview = treeview
     
     @staticmethod
     def create_current_files_treeview(ref):
@@ -129,6 +200,7 @@ class Creators:
             show=("tree", "headings"),
             selectmode="none",
             takefocus=False,
+            height=5
         )
         treeview.state(["disabled"])
         treeview.heading("#0", text="")
@@ -156,6 +228,7 @@ class Creators:
             show=("tree", "headings"),
             selectmode="none",
             takefocus=False,
+            height=5
         )
         treeview.state(["disabled"])
         treeview.heading("#0", text="")
@@ -187,10 +260,10 @@ class Creators:
     @staticmethod
     def create_settings_projects_frame(ref):
         projects_frame = ttk.LabelFrame(ref.settings_tab, text="Projects")
-        projects_frame.pack(fill='x', expand=False, padx=10, pady=10, side='top')
+        projects_frame.pack(fill='x', expand=False, padx=5, pady=5, side='top')
         
         new_project_button = ttk.Button(projects_frame, text="New Project")
-        new_project_button.pack(side='left', pady=10, fill='none', anchor = "n")
+        new_project_button.pack(side='left', pady=5, fill='none', anchor = "n")
         
         # left column project list
         project_list_frame = ttk.Frame(projects_frame)
@@ -223,7 +296,7 @@ class Creators:
     @staticmethod
     def create_settings_who_frame(ref):
         who_frame = ttk.LabelFrame(ref.settings_tab, text="Who am I?")
-        who_frame.pack(fill='x', expand=False, padx=10, pady=10, side='top')
+        who_frame.pack(fill='x', expand=False, padx=5, pady=5, side='top')
         who_listbox = tk.Listbox(
             who_frame,
             height=10,

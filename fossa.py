@@ -43,22 +43,40 @@ def main():
     ref.setup_fonts()
     
     ref.tabs_container = Creators.create_tab_container(ref.main_window)
+    
     ref.main_tab = Creators.create_tab_main(ref.tabs_container)
+    
     ref.main_tab.ref = ref
+    ref.main_window.ref = ref
+    
     ref.settings_tab = Creators.create_tab_settings(ref.tabs_container)
+    
     ref.command_bar_frame = Creators.create_command_entry_frame(ref.main_tab)
     Creators.fill_command_entry_frame(ref)
+    
     ref.projects_frame = Creators.create_settings_projects_frame(ref)
-    ref.current_files_frame = Creators.create_current_files_frame(ref.main_tab)
-    ref.recent_files_frame = Creators.create_recent_files_frame(ref.main_tab)
+    
+    ref.file_lists_frame = Creators.create_file_lists_frame(ref.main_tab)
+    ref.current_files_frame = Creators.create_current_files_frame(ref.file_lists_frame)
+    ref.recent_files_frame = Creators.create_recent_files_frame(ref.file_lists_frame)
+    
     Creators.create_current_files_treeview(ref)
     Creators.create_recent_files_treeview(ref)
+
+    ref.locks_frame = Creators.create_locks_frame(ref.main_tab)
+    ref.locks_details_frame = Creators.create_locks_details_frame(ref.main_tab)
+    Creators.create_locks_treeview(ref)
+    Creators.create_locks_details_buttons(ref)
+    
     Creators.create_settings_who_frame(ref)
     Creators.create_settings_other_frame(ref)
+    
     Populators.populate_who_listbox(ref, who)
     Populators.populate_project_listbox(ref, [test_project])
-    Populators.populate_current_files_treeview(ref)
     Populators.populate_recent_files_treeview(ref)
+    Populators.populate_current_files_treeview(ref)
+    Populators.populate_locks_treeview(ref)
+    
     
     # last
     ref.load_persistence()
