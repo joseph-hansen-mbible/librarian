@@ -54,7 +54,7 @@ class CreatorsMaintab:
 
         action_label = ttk.Label(
             ref.command_bar_frame,
-            text="I want to...",
+            text="I want to",
             style="CommandBar.TLabel",
             font=command_font,
         )
@@ -200,8 +200,8 @@ class CreatorsMaintab:
     def create_file_lists_frame(parent):
         file_lists_frame = ttk.Frame(parent)
         file_lists_frame.pack(fill='both', expand=True, side='top')
-        file_lists_frame.grid_columnconfigure(0, weight=2, uniform="file_lists")
-        file_lists_frame.grid_columnconfigure(1, weight=1, uniform="file_lists")
+        file_lists_frame.grid_columnconfigure(0, weight=6, uniform="file_lists")
+        file_lists_frame.grid_columnconfigure(1, weight=5, uniform="file_lists")
         file_lists_frame.grid_rowconfigure(0, weight=1)
         file_lists_frame.ref = parent.ref
         return file_lists_frame
@@ -330,8 +330,8 @@ class CreatorsMaintab:
             selectmode="browse",
             height=8,
         )
-        treeview.column("Status", width=60, minwidth=60, stretch=False)
-        treeview.column("Date", width=90, minwidth=90, stretch=False)
+        treeview.column("Status", width=90, minwidth=80, stretch=True)
+        treeview.column("Date", width=100, minwidth=90, stretch=True)
         treeview.column("Artist", width=105, minwidth=85, stretch=True)
         treeview.column("File", width=130, minwidth=100, stretch=True)
         for column in columns:

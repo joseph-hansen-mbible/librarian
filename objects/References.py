@@ -50,7 +50,7 @@ class References:
         
         treeview_heading_adjustment = (ref.treeview_heading_font.actual()['size'] - 10) * 10
         
-        ref.recent_files_treeview.column("Status", width=50 + treeview_heading_adjustment)
+        ref.recent_files_treeview.column("Status", width=80 + treeview_heading_adjustment)
         ref.recent_files_treeview.column("Date", width=100 + treeview_heading_adjustment)
         ref.recent_files_treeview.column("Artist", width=110 + treeview_heading_adjustment)
 
@@ -64,8 +64,8 @@ class References:
         window_height = ref.main_window.winfo_screenheight()
         screen_height = ref.main_window.winfo_screenheight()
         center_y = int(screen_height/2 - window_height / 4)
-        ref.main_window.geometry(f'{1600}x{500}+{100}+{center_y}')
-        ref.main_window.minsize(700, 500)
+        ref.main_window.geometry(f'{1300}x{500}+{200}+{center_y}')
+        ref.main_window.minsize(1200, 500)
         
         ref.save_font_size(1)
     
@@ -82,7 +82,7 @@ class References:
         
         treeview_heading_adjustment = (ref.treeview_heading_font.actual()['size'] - 10) * 10
         
-        ref.recent_files_treeview.column("Status", width=50 + treeview_heading_adjustment)
+        ref.recent_files_treeview.column("Status", width=80 + treeview_heading_adjustment)
         ref.recent_files_treeview.column("Date", width=100 + treeview_heading_adjustment)
         ref.recent_files_treeview.column("Artist", width=110 + treeview_heading_adjustment)
 
@@ -97,8 +97,8 @@ class References:
         window_height = ref.main_window.winfo_screenheight()
         screen_height = ref.main_window.winfo_screenheight()
         center_y = int(screen_height/2 - window_height / 4)
-        ref.main_window.geometry(f'{1600}x{500}+{100}+{center_y}')
-        ref.main_window.minsize(700, 500)
+        ref.main_window.geometry(f'{1300}x{500}+{200}+{center_y}')
+        ref.main_window.minsize(1200, 500)
         
         ref.save_font_size(-1)
     
