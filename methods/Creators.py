@@ -14,8 +14,14 @@ class CreatorsMaintab:
     @staticmethod
     def create_tab_container(window):
         notebook = ttk.Notebook(window)
-        notebook.pack(pady=5, expand=True, fill='both')
+        notebook.pack(expand=True, fill='both')
         return notebook
+
+    @staticmethod
+    def create_main_toolbar(window):
+        toolbar = ttk.Frame(window)
+        toolbar.pack(side='top', fill='x')
+        return toolbar
 
     @staticmethod
     def create_tab_main(notebook):
@@ -34,7 +40,7 @@ class CreatorsMaintab:
     @staticmethod
     def create_command_entry_frame(parent):
         command_bar_frame = ttk.Frame(parent)
-        command_bar_frame.pack(fill='none', expand=False, padx=5, pady=40, side='top', anchor='center')
+        command_bar_frame.pack(fill='x', expand=False, padx=5, pady=40, side='top', anchor='w')
         return command_bar_frame
     
     @staticmethod
@@ -112,8 +118,8 @@ class CreatorsMaintab:
         
     @staticmethod
     def create_current_files_frame(parent):
-        current_files_frame = ttk.Frame(parent)
-        current_files_frame.pack(fill='both', expand=True, side='left', padx=5, pady=5)
+        current_files_frame = ttk.Frame(parent, style="CurrentFiles.TFrame")
+        current_files_frame.pack(fill='both', expand=True, side='left', padx=5, pady=5, anchor='s')
         return current_files_frame
 
     @staticmethod
@@ -123,7 +129,8 @@ class CreatorsMaintab:
             text="Currently Checked Out",
             font=ref.command_font,
             anchor='w',
-        ).pack(side='top', fill='x', anchor='w', pady=5)
+            style="CurrentFiles.TLabel",
+        ).pack(side='top', fill='x', padx=5, pady=5)
     
     @staticmethod
     def create_recent_files_frame(parent):
@@ -290,15 +297,16 @@ class CreatorsMaintab:
     
     @staticmethod
     def create_file_text_table(parent, ref, columns, column_weights):
-        table = ttk.Frame(parent)
-        table.pack(fill='both', expand=True, padx=5, pady=5)
+        table = ttk.Frame(parent, style="CurrentFiles.TFrame")
+        table.pack(fill='both', expand=True, pady=5)
         for index, column in enumerate(columns):
             table.grid_columnconfigure(index, weight=column_weights[index])
             ttk.Label(
                 table,
                 text=column,
                 font=ref.treeview_heading_font_small,
-            ).grid(row=0, column=index, sticky='w', padx=(12, 8), pady=(8, 2))
+                style="CurrentFiles.TLabel",
+            ).grid(row=0, column=index, sticky='w', padx=(5, 8), pady=(8, 2))
         return table
 
     @staticmethod

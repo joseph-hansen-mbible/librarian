@@ -64,7 +64,7 @@ class References:
         window_height = ref.main_window.winfo_screenheight()
         screen_height = ref.main_window.winfo_screenheight()
         center_y = int(screen_height/2 - window_height / 4)
-        ref.main_window.geometry(f'{1300}x{500}+{200}+{center_y}')
+        ref.main_window.geometry(f'{1600}x{500}+{100}+{center_y}')
         ref.main_window.minsize(700, 500)
         
         ref.save_font_size(1)
@@ -97,7 +97,7 @@ class References:
         window_height = ref.main_window.winfo_screenheight()
         screen_height = ref.main_window.winfo_screenheight()
         center_y = int(screen_height/2 - window_height / 4)
-        ref.main_window.geometry(f'{1300}x{500}+{200}+{center_y}')
+        ref.main_window.geometry(f'{1600}x{500}+{100}+{center_y}')
         ref.main_window.minsize(700, 500)
         
         ref.save_font_size(-1)
@@ -117,5 +117,13 @@ class References:
         style.configure('Small.Treeview', font=ref.small_treeview_font)
         ref.gray_font = tkFont.Font(family="Helvetica", size=11, weight="normal")
         style.configure("Gray.TLabel", font=ref.gray_font, foreground="#b7b7b7")
+        style.configure("CurrentFiles.TFrame", background="#2b2d32")
+        style.configure("CurrentFiles.TLabel", background="#2b2d32")
+        style.configure(
+            "CurrentFilesValue.TLabel",
+            font=ref.gray_font,
+            foreground="#b7b7b7",
+            background="#2b2d32",
+        )
         ref.label_font = tkFont.Font(family="Helvetica", size=11, weight="normal")
         style.configure('TLabelframe.Label', font=ref.label_font)

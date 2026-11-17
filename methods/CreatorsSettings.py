@@ -7,11 +7,35 @@ from objects.Project import Project, Status
 
 class CreatorsSettings:    
     @staticmethod
-    def create_tab_settings(notebook):
-        settings_tab = ttk.Frame(notebook)
-        settings_tab.pack(fill='both', expand=True)
-        notebook.add(settings_tab, text='Settings')
-        return settings_tab
+    def create_settings_window(ref):
+        settings_window = tk.Toplevel(ref.main_window)
+        settings_window.title("Settings")
+        settings_window.geometry("700x700")
+        settings_window.minsize(500, 400)
+        settings_window.transient(ref.main_window)
+        settings_window.withdraw()
+        settings_window.protocol("WM_DELETE_WINDOW", settings_window.withdraw)
+
+        ref.settings_tab = ttk.Frame(settings_window)
+        ref.settings_tab.pack(fill='both', expand=True)
+        return settings_window
+
+    @staticmethod
+    def create_settings_button(ref, parent):
+        settings_icon_path = Path(__file__).resolve().parent.parent / "assets" / "settings.png"
+        ref.settings_icon = tk.PhotoImage(file=str(settings_icon_path)).subsample(2, 2)
+        ref.settings_button = ttk.Button(
+            parent,
+            image=ref.settings_icon,
+            command=lambda: CreatorsSettings.show_settings_window(ref),
+        )
+        ref.settings_button.pack(side='right', padx=5)
+
+    @staticmethod
+    def show_settings_window(ref):
+        ref.settings_window.deiconify()
+        ref.settings_window.lift()
+        ref.settings_window.focus_set()
 
     @staticmethod
     def create_settings_projects_frame(ref):

@@ -43,6 +43,9 @@ def main():
     SetUpMenus(ref)
     ref.setup_fonts()
     
+    ref.settings_window = CreatorsSettings.create_settings_window(ref)
+    ref.main_toolbar_frame = Creators.create_main_toolbar(ref.main_window)
+    CreatorsSettings.create_settings_button(ref, ref.main_toolbar_frame)
     ref.tabs_container = Creators.create_tab_container(ref.main_window)
     
     ref.main_tab = Creators.create_tab_main(ref.tabs_container)
@@ -52,8 +55,6 @@ def main():
     
     ref.all_files_tab = Creators.create_tab_all_files(ref.tabs_container)
     ref.all_files_tab.ref = ref
-
-    ref.settings_tab = CreatorsSettings.create_tab_settings(ref.tabs_container)
     
     ref.projects_frame = CreatorsSettings.create_settings_projects_frame(ref)
     
@@ -90,12 +91,6 @@ def main():
     # last
     ref.load_persistence()
 
-    def focus_project_listbox_on_settings(_event):
-        if ref.tabs_container.select() == str(ref.settings_tab):
-            ref.tabs_container.after_idle(ref.project_listbox.focus_set)
-
-    ref.tabs_container.bind("<<NotebookTabChanged>>", focus_project_listbox_on_settings)
-
     # last
     icon_and_loop(ref.main_window)
 
@@ -110,11 +105,14 @@ def SetUpMenus(ref):
     menubar = Menu(ref.main_window)
     root.config(menu=menubar)
     options_menu = Menu(menubar, tearoff=False)
+    settings_menu = Menu(menubar,tearoff=False)
 
     options_menu.add_command(
         label='Increase Font Size',
         command=ref.increase_font_size
     )
+    
+    settings_menu.add_command(label="Settings", command=lambda: CreatorsSettings.show_settings_window(ref))
     
     options_menu.add_command(
             label='Decrease Font Size',
@@ -123,8 +121,12 @@ def SetUpMenus(ref):
 
     menubar.add_cascade(
         label="Appearance",
-        menu=options_menu
-)
+        menu=options_menu)
+    
+    menubar.add_cascade(
+        label="Settings",
+        menu=settings_menu
+    )
 
 if __name__ == "__main__":
     main()

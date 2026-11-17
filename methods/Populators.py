@@ -23,19 +23,21 @@ class Populators:
     @staticmethod
     def populate_current_files_table(ref):
         row = ("File1.blend", "Joseph Hansen")
-        for column, value in enumerate(row):
-            ttk.Label(
-                ref.current_files_table,
-                text=value,
-                style="Gray.TLabel",
-            ).grid(
-                row=ref.current_files_table_next_row,
-                column=column,
-                sticky="w",
-                padx=(12, 8),
-                pady=2,
-            )
-        ref.current_files_table_next_row += 1
+        rows = [row, row, row, row, row, row]
+        for r in rows:
+            for column, value in enumerate(r):
+                ttk.Label(
+                    ref.current_files_table,
+                    text=value,
+                    style="CurrentFilesValue.TLabel",
+                ).grid(
+                    row=ref.current_files_table_next_row,
+                    column=column,
+                    sticky='w',
+                    padx=(5, 8),
+                    pady=2,
+                )
+            ref.current_files_table_next_row += 1
     
     @staticmethod
     def populate_recent_files_treeview(ref):
