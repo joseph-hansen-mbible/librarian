@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fossa-librarian"
+version = "0.1.0"
+description = "A desktop librarian for Blender project files"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "platformdirs>=4",
+]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = [".", "gui"]
+include = ["gui", "db*", "workers*", "objects*", "methods*", "whoami*"]
+namespaces = true
+
+[tool.setuptools.package-data]
+gui = [
+    "assets/*",
+    "themes/**/*",
+]
