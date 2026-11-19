@@ -64,8 +64,8 @@ class References:
         window_height = ref.main_window.winfo_screenheight()
         screen_height = ref.main_window.winfo_screenheight()
         center_y = int(screen_height/2 - window_height / 4)
-        ref.main_window.geometry(f'{1300}x{500}+{200}+{center_y}')
-        ref.main_window.minsize(1200, 500)
+        ref.main_window.geometry(f'{1300}x{550}+{200}+{center_y}')
+        ref.main_window.minsize(1200, 550)
         
         ref.save_font_size(1)
     
@@ -97,8 +97,8 @@ class References:
         window_height = ref.main_window.winfo_screenheight()
         screen_height = ref.main_window.winfo_screenheight()
         center_y = int(screen_height/2 - window_height / 4)
-        ref.main_window.geometry(f'{1300}x{500}+{200}+{center_y}')
-        ref.main_window.minsize(1200, 500)
+        ref.main_window.geometry(f'{1300}x{550}+{200}+{center_y}')
+        ref.main_window.minsize(1200, 550)
         
         ref.save_font_size(-1)
     
@@ -126,4 +126,5 @@ class References:
             background="#2b2d32",
         )
         ref.label_font = tkFont.Font(family="Helvetica", size=11, weight="normal")
+        ref.status_font = tkFont.Font(family="Helvetica", size=8, weight="normal")
         style.configure('TLabelframe.Label', font=ref.label_font)

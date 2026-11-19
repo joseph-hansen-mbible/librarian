@@ -598,16 +598,3 @@ class FossaWorker():
             return True
         finally:
             self.Destroy()
-
-
-if __name__ == "__main__":
-    database = fossadb.FossaDB(Path("/Volumes/KidsExperience"))
-    test_network_path = Path("/Volumes/KidsExperience/Noah")
-    while True:
-        artist_name = input("What is your name? ")
-        g = FossaWorker(LFRoles.BLENDER, test_network_path, artist_name, database)
-        print("Trying to checkout `test-blend.blend`")
-        print(
-            "'test-blend.blend' Checkout allowed: "
-            f"{g.CheckOutBlenderFile('test-blend.blend')}"
-        )

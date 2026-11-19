@@ -57,4 +57,20 @@ class Populators:
         # ("Project", "Scene", "Shot", "Version", "Type", "Status", "Checklist", "UA")
         item = ref.locks_treeview.insert("", "end", values=("Noah", "1", "1", "1", "CharAnimGraybox", "WIP", "0/5", "0"))
         ref.all_files_item_ids.append(item)
-        
+
+    @staticmethod
+    def update_status_bar(ref):
+        text = "Database connected" if ref.database_connected else "Connection failure"
+        background = "green" if ref.database_connected else "red"
+
+        if not hasattr(ref, "status_bar_database_connection"):
+            ref.status_bar_database_connection = ttk.Label(
+                        ref.statusbar,
+                        text=text,
+                        font=ref.status_font,
+                        anchor='center',
+                        background=background,
+                    )
+            ref.status_bar_database_connection.pack(side="left", fill="x", expand=True)
+        else:
+            ref.status_bar_database_connection.configure(text=text, background=background)

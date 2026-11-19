@@ -24,6 +24,12 @@ class CreatorsMaintab:
         return toolbar
 
     @staticmethod
+    def create_main_statusbar(window):
+        statusbar = ttk.Frame(window)
+        statusbar.pack(side='bottom', fill='x')
+        return statusbar
+
+    @staticmethod
     def create_tab_main(notebook):
         main_tab = ttk.Frame(notebook)
         main_tab.pack(fill='both', expand=True)

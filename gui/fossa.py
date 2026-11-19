@@ -1,12 +1,19 @@
 import tkinter as tk
 from tkinter import Menu, ttk
 from pathlib import Path
+import sys
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 from objects.Project import Project, Status
 from whoami import Who
 from methods.Populators import Populators
 from methods.Creators import CreatorsMaintab as Creators
 from methods.CreatorsSettings import CreatorsSettings
 from objects.References import References
+from db import fossadb
 
 test_project = None
 
@@ -31,10 +38,10 @@ def icon_and_loop(main_window):
 
 def main():
     who = Who.Who()
-        
+
     if test_project is None:
         create_test_project()
-        
+
     ref = References()
     
     ref.main_window = Creators.setup_main_window(tk.Tk())
@@ -45,6 +52,9 @@ def main():
     
     ref.settings_window = CreatorsSettings.create_settings_window(ref)
     ref.main_toolbar_frame = Creators.create_main_toolbar(ref.main_window)
+    ref.statusbar = Creators.create_main_statusbar(ref.main_window)
+    UpdateStatusBar(ref)
+    
     CreatorsSettings.create_settings_button(ref, ref.main_toolbar_frame)
     ref.tabs_container = Creators.create_tab_container(ref.main_window)
     
@@ -87,7 +97,6 @@ def main():
     Populators.populate_current_files_table(ref)
     Populators.populate_locks_treeview(ref)
     
-    
     # last
     ref.load_persistence()
 
@@ -127,6 +136,16 @@ def SetUpMenus(ref):
         label="Settings",
         menu=settings_menu
     )
+
+def UpdateStatusBar(ref):
+    if not getattr(ref, "database_connected", False):
+        try:
+            ref.database = fossadb.FossaDB(Path("/Volumes/KidsExperience")) # TODO: Get this path from settings
+            ref.database_connected = True
+        except Exception:
+            ref.database_connected = False
+    Populators.update_status_bar(ref)
+    ref.status_bar_timer = ref.main_window.after(5_000, lambda: UpdateStatusBar(ref))
 
 if __name__ == "__main__":
     main()
