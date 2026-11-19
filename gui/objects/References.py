@@ -84,6 +84,7 @@ class References:
         ref.treeview_heading_font.config(size=ref.treeview_heading_font.actual()['size'] + 2)
         ref.treeview_font.config(size=ref.treeview_font.actual()['size'] + 2)
         ref.label_font.config(size=ref.treeview_font.actual()['size'] + 2)
+        ref.status_font.config(size=ref.status_font.actual()['size'] + 2)
         
         ref.small_treeview_font.config(size=ref.small_treeview_font.actual()['size'] + 2)
         ref.treeview_heading_font_small.config(size=ref.treeview_heading_font_small.actual()['size'] + 2)
@@ -116,6 +117,7 @@ class References:
         ref.treeview_heading_font.config(size=ref.treeview_heading_font.actual()['size'] - 2)
         ref.treeview_font.config(size=ref.treeview_font.actual()['size'] - 2)
         ref.label_font.config(size=ref.treeview_font.actual()['size'] - 2)
+        ref.status_font.config(size=ref.status_font.actual()['size'] - 2)
         
         ref.small_treeview_font.config(size=ref.small_treeview_font.actual()['size'] - 2)
         ref.treeview_heading_font_small.config(size=ref.treeview_heading_font_small.actual()['size'] - 2)
