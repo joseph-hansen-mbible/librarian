@@ -1,3 +1,4 @@
+import os
 import tkinter as tk
 from tkinter import Menu, ttk
 from pathlib import Path
@@ -14,6 +15,7 @@ from methods.Creators import CreatorsMaintab as Creators
 from methods.CreatorsSettings import CreatorsSettings
 from objects.References import References
 from db import fossadb
+from workers import core
 
 test_project = None
 
@@ -35,6 +37,12 @@ def icon_and_loop(main_window):
     finally:
         main_window.mainloop()
 
+def CloseApplication(ref):
+    try:
+        core.FossaWorker.DestroyAll()
+    finally:
+        ref.main_window.destroy()
+
 
 def main():
     who = Who.Who()
@@ -46,6 +54,9 @@ def main():
     ref.update_status_bar = lambda: UpdateStatusBar(ref, schedule=False)
 
     ref.main_window = Creators.setup_main_window(tk.Tk())
+    ref.main_window.protocol(
+        "WM_DELETE_WINDOW", lambda: CloseApplication(ref)
+    )
     
     StyleMainWindow(ref)
     SetUpMenus(ref)
@@ -105,10 +116,20 @@ def main():
     # last
     ref.load_persistence()
     UpdateStatusBar(ref)
-    UpdateStatusBar(ref)
 
-    # last
     icon_and_loop(ref.main_window)
+
+def CheckOutBlenderFile(filepath, artist, project, ref):
+    if ref.database_connected:
+        core.FossaWorker(core.LFRoles.CACHING, os.path.join(ref.network_base_path_variable.get(), project), artist, ref.database).CheckOutBlenderFile(filepath)
+
+def CheckInBlenderFile(artist, project, ref):
+    # you can only checkout one at a time so the filepath doesn't matter
+    # this wouldn't work for actual VC but really CICO here is just file locks anyway
+    if ref.database_connected:
+        core.FossaWorker(core.LFRoles.CACHING, os.path.join(ref.network_base_path_variable.get(), project), artist, ref.database).CheckInBlenderFile()
+    # this needs to connect to Blender and never be called directly, only through bpy,
+    # to ensure that when a file is checked back in it CANNOT be edited without checking out again
 
 def StyleMainWindow(ref):
     style = ttk.Style(ref.main_window)

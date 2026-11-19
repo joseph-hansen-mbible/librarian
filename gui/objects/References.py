@@ -169,5 +169,5 @@ class References:
             background="#2b2d32",
         )
         ref.label_font = tkFont.Font(family="Helvetica", size=11, weight="normal")
-        ref.status_font = tkFont.Font(family="Helvetica", size=8, weight="normal")
+        ref.status_font = tkFont.Font(family="Helvetica", size=8, weight="normal", slant="italic")
         style.configure('TLabelframe.Label', font=ref.label_font)

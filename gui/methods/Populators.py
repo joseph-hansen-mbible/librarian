@@ -61,10 +61,10 @@ class Populators:
     @staticmethod
     def update_status_bar(ref):
         database_text = "Database connected" if ref.database_connected else "Connection failure"
-        database_background = "green" if ref.database_connected else "red"
+        database_background = "#2c532f" if ref.database_connected else "red"
         
         blender_text = "Fruitbat ready" if ref.blender_ready else "Set the path to Fruitbat executable in settings"
-        blender_background = "green" if ref.blender_ready else "red"
+        blender_background = "#2c532f" if ref.blender_ready else "red"
 
         if not hasattr(ref, "status_bar_database_connection"):
             ref.status_bar_database_connection = ttk.Label(
@@ -73,6 +73,7 @@ class Populators:
                         font=ref.status_font,
                         anchor='center',
                         background=database_background,
+                        foreground="#aaaaaa"
                     )
             
             ref.status_bar_database_connection.pack(side="left", fill="x", expand=True, padx="2")
@@ -87,6 +88,7 @@ class Populators:
                 font=ref.status_font,
                 anchor='center',
                 background=blender_background,
+                foreground="#aaaaaa"
             )
             ref.status_bar_blender_connection.pack(side="left", fill="x", expand=True, padx="2")
         else: 

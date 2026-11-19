@@ -206,7 +206,33 @@ class FossaDB:
                     raise ValueError("Network cache must be a JSON object")
 
                 database = self._ReadDatabase()
-                database[str(artist)] = cache_data
+                artist = str(artist)
+                artist_data = database.get(artist, {})
+                if not isinstance(artist_data, dict):
+                    raise ValueError(
+                        f"Cache data for {artist!r} must be a JSON object"
+                    )
+
+                existing_recent_files = artist_data.get("recent_files", [])
+                if not isinstance(existing_recent_files, list):
+                    raise ValueError(
+                        f"Recent files for {artist!r} must be a JSON array"
+                    )
+                incoming_recent_files = cache_data.get("recent_files", [])
+                if not isinstance(incoming_recent_files, list):
+                    raise ValueError(
+                        f"Recent files for {artist!r} must be a JSON array"
+                    )
+
+                recent_files = []
+                for filepath in (
+                    existing_recent_files + incoming_recent_files
+                ):
+                    if filepath in recent_files:
+                        recent_files.remove(filepath)
+                    recent_files.append(filepath)
+                cache_data["recent_files"] = recent_files
+                database[artist] = cache_data
                 self._WriteDatabase(database)
                 network_cache_path.unlink()
                 return True

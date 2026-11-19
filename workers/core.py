@@ -55,6 +55,9 @@ class LocalCacheData():
         self.ssot_unlock_count = ssot_unlock_count
 
 class FossaWorker():
+    _active_workers = set()
+    _active_workers_lock = Lock()
+
     def __init__(self, role, network_base_path, artist, fossa_db):
         self.role = role
         self.initial_role = role
@@ -103,6 +106,25 @@ class FossaWorker():
         }
         description = worker_descriptions.get(role, "worker")
         self.LogToRecords(f"assigned name and started {description}")
+        with self._active_workers_lock:
+            self._active_workers.add(self)
+
+    @classmethod
+    def DestroyAll(cls):
+        with cls._active_workers_lock:
+            workers = tuple(cls._active_workers)
+
+        failures = []
+        for worker in workers:
+            try:
+                worker.Destroy()
+            except Exception as error:
+                failures.append(error)
+
+        if failures:
+            raise ExceptionGroup(
+                "Failed to close one or more Fossa workers", failures
+            )
 
     def _ReportFailure(self, message):
         if self.role is LFRoles.RECORDS or self._closed:
@@ -518,6 +540,8 @@ class FossaWorker():
                 self._closed = True
                 self.name = None
                 self.role = None
+                with self._active_workers_lock:
+                    self._active_workers.discard(self)
     
     def CacheData(self):
         if self._network_cache_queued or self._finishing_cache_queue:
@@ -569,21 +593,12 @@ class FossaWorker():
     def CanCheckOutBlenderFile(self, filepath):
         if self._closed:
             return False
-        database_worker = FossaWorker(
-            LFRoles.DB_ACCESS,
-            self.network_base_path,
+        return self.fossa_db.CanCheckOutBlenderFile(
             self.artist,
-            self.fossa_db,
+            filepath,
+            failure_reporter=self._ReportFailure,
+            network_base_path=self.network_base_path,
         )
-        try:
-            return self.fossa_db.CanCheckOutBlenderFile(
-                self.artist,
-                filepath,
-                failure_reporter=database_worker._ReportFailure,
-                network_base_path=self.network_base_path,
-            )
-        finally:
-            database_worker.Destroy()
 
     def CheckOutBlenderFile(self, filepath):
         if self._closed:
@@ -593,8 +608,18 @@ class FossaWorker():
                 return False
             requested_path = str(Path(filepath).expanduser().resolve())
             self.local_cache_data.current_file = requested_path
-            self.local_cache_data.recent_files.append(requested_path)
+            if requested_path not in self.local_cache_data.recent_files:
+                self.local_cache_data.recent_files.append(requested_path)
+            else:
+                self.local_cache_data.recent_files.remove(requested_path)
+                self.local_cache_data.recent_files.append(requested_path)
+                
             self.CacheData()
             return True
         finally:
             self.Destroy()
+    
+    def CheckInBlenderFile(self):
+        self.local_cache_data.current_file = ""
+        self.CacheData()
+        self.Destroy()
