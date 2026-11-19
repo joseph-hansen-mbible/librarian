@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter import filedialog, ttk
 from pathlib import Path
 
 from methods.Filters import Filters
@@ -97,23 +97,84 @@ class CreatorsSettings:
         
         other_row = ttk.Frame(other_frame)
         other_row.pack(fill='x', expand=False, padx=5, pady=5)
-        blender_file_path_entry = ttk.Entry(other_row)
+
+        blender_file_path_entry = ttk.Entry(other_row, textvariable=ref.blender_file_path_variable)
         blender_file_path_entry.pack(side='left', fill='x', expand=True)
-        choose_blender_file_path_button = ttk.Button(other_row, text="Blender Executable")
+        blender_file_path_entry.bind(
+            "<Return>",
+            lambda _event: CreatorsSettings.save_blender_file_path(ref),
+        )
+        blender_file_path_entry.bind(
+            "<FocusOut>",
+            lambda _event: CreatorsSettings.save_blender_file_path(ref),
+        )
+        choose_blender_file_path_button = ttk.Button(
+            other_row,
+            text="Blender Executable",
+            command=lambda: CreatorsSettings.choose_blender_file_path(ref),
+        )
         choose_blender_file_path_button.pack(side='right', padx=5)
-        
-        status_checks_row = ttk.Frame(other_frame)
-        status_checks_row.pack(fill='x', expand=False, padx=5, pady=5)
-        status_checks = {
-            "Blender connection": ttk.Label(status_checks_row, text="Blender connection", background="green"),
-            "Network connection": ttk.Label(status_checks_row, text="Network connection", background="green"),
-            "Database connection": ttk.Label(status_checks_row, text="Database connection", background="green"),
-        }
-        for label in status_checks.values():
-            label.pack(side='left', padx=5, pady=5, fill='x', expand=True)
+
+        ref.blender_file_path_entry = blender_file_path_entry
+
+        network_row = ttk.Frame(other_frame)
+        network_row.pack(fill='x', expand=False, padx=5, pady=5)
+
+        network_base_path_entry = ttk.Entry(
+            network_row,
+            textvariable=ref.network_base_path_variable,
+        )
+        network_base_path_entry.pack(side='left', fill='x', expand=True)
+        network_base_path_entry.bind(
+            "<Return>",
+            lambda _event: CreatorsSettings.save_network_base_path(ref),
+        )
+        network_base_path_entry.bind(
+            "<FocusOut>",
+            lambda _event: CreatorsSettings.save_network_base_path(ref),
+        )
+        choose_network_base_path_button = ttk.Button(
+            network_row,
+            text="Network Folder",
+            command=lambda: CreatorsSettings.choose_network_base_path(ref),
+        )
+        choose_network_base_path_button.pack(side='right', padx=5)
+        ref.network_base_path_entry = network_base_path_entry
         
         increase_button = tk.Button(ref.settings_tab, text="Increase Font Size", command=ref.increase_font_size)
         increase_button.pack()
 
         decrease_button = tk.Button(ref.settings_tab, text="Decrease Font Size", command=ref.decrease_font_size)
         decrease_button.pack()
+
+    @staticmethod
+    def choose_blender_file_path(ref):
+        blender_file_path = filedialog.askopenfilename(
+            parent=ref.settings_window,
+            title="Select Blender executable",
+            filetypes=(("Blender executable", "*"), ("All files", "*")),
+        )
+        if blender_file_path:
+            ref.blender_file_path_variable.set(blender_file_path)
+            CreatorsSettings.save_blender_file_path(ref)
+
+    @staticmethod
+    def save_blender_file_path(ref):
+        ref.save_blender_file_path(ref.blender_file_path_variable.get())
+        ref.update_status_bar()
+
+    @staticmethod
+    def choose_network_base_path(ref):
+        network_base_path = filedialog.askdirectory(
+            parent=ref.settings_window,
+            title="Select network folder",
+            mustexist=True,
+        )
+        if network_base_path:
+            ref.network_base_path_variable.set(network_base_path)
+            CreatorsSettings.save_network_base_path(ref)
+
+    @staticmethod
+    def save_network_base_path(ref):
+        ref.save_network_base_path(ref.network_base_path_variable.get())
+        ref.update_status_bar()

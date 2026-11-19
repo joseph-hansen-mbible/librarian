@@ -43,18 +43,23 @@ def main():
         create_test_project()
 
     ref = References()
-    
+    ref.update_status_bar = lambda: UpdateStatusBar(ref, schedule=False)
+
     ref.main_window = Creators.setup_main_window(tk.Tk())
     
     StyleMainWindow(ref)
     SetUpMenus(ref)
     ref.setup_fonts()
     
+    ref.blender_file_path_variable = tk.StringVar()
+    ref.network_base_path_variable = tk.StringVar(
+        value="/Volumes/KidsExperience"
+    )
+    
     ref.settings_window = CreatorsSettings.create_settings_window(ref)
     ref.main_toolbar_frame = Creators.create_main_toolbar(ref.main_window)
     ref.statusbar = Creators.create_main_statusbar(ref.main_window)
-    UpdateStatusBar(ref)
-    
+
     CreatorsSettings.create_settings_button(ref, ref.main_toolbar_frame)
     ref.tabs_container = Creators.create_tab_container(ref.main_window)
     
@@ -99,6 +104,8 @@ def main():
     
     # last
     ref.load_persistence()
+    UpdateStatusBar(ref)
+    UpdateStatusBar(ref)
 
     # last
     icon_and_loop(ref.main_window)
@@ -137,15 +144,37 @@ def SetUpMenus(ref):
         menu=settings_menu
     )
 
-def UpdateStatusBar(ref):
-    if not getattr(ref, "database_connected", False):
-        try:
-            ref.database = fossadb.FossaDB(Path("/Volumes/KidsExperience")) # TODO: Get this path from settings
-            ref.database_connected = True
-        except Exception:
-            ref.database_connected = False
+def UpdateStatusBar(ref, schedule=True):
+    network_base_path = ref.network_base_path_variable.get().strip()
+    if not network_base_path:
+        ref.database = None
+        ref.database_connected = False
+    else:
+        network_base_path = Path(network_base_path).expanduser().resolve()
+        database = getattr(ref, "database", None)
+        if database is None or database.network_base_path != network_base_path:
+            ref.database = None
+            if network_base_path.is_dir():
+                try:
+                    ref.database = fossadb.FossaDB(network_base_path)
+                except (OSError, ValueError):
+                    ref.database = None
+        ref.database_connected = (
+            ref.database.IsConnected() if ref.database is not None else False
+        )
+
+    blender_file_path = ref.blender_file_path_variable.get()
+    ref.blender_ready = (
+        bool(blender_file_path)
+        and (".app" in blender_file_path or ".exe" in blender_file_path)
+        and Path(blender_file_path).exists()
+    )
+
     Populators.update_status_bar(ref)
-    ref.status_bar_timer = ref.main_window.after(5_000, lambda: UpdateStatusBar(ref))
+    if schedule:
+        ref.status_bar_timer = ref.main_window.after(
+            5_000, lambda: UpdateStatusBar(ref)
+        )
 
 if __name__ == "__main__":
     main()

@@ -11,7 +11,10 @@ class FossaDB:
         self.database_file_path = self.network_base_path / "fossa.db"
         self.lock_file_path = self.network_base_path / ".fossa.db.lock"
         try:
-            self.network_base_path.mkdir(parents=True, exist_ok=True)
+            if not self.network_base_path.is_dir():
+                raise FileNotFoundError(
+                    f"FossaDB network path is unavailable: {self.network_base_path}"
+                )
             self._EnsureDatabaseFile()
         except Exception as error:
             self._ReportFailure(f"FossaDB initialization failed: {error}")
@@ -64,6 +67,16 @@ class FossaDB:
         if not isinstance(database, dict):
             raise ValueError("Fossa database must be a JSON object")
         return database
+
+    def IsConnected(self):
+        if not self.network_base_path.is_dir() or not self.database_file_path.is_file():
+            return False
+
+        try:
+            self._ReadDatabase()
+        except (OSError, ValueError):
+            return False
+        return True
 
     def _WriteDatabase(self, database):
         temporary_path = self.database_file_path.with_name(

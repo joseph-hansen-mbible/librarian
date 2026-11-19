@@ -3,7 +3,6 @@ import tkinter as tk
 from tkinter import Menu, ttk
 import tkinter.font as tkFont
 import json
-from os import path
 from platformdirs import PlatformDirs
 
 class References:
@@ -12,29 +11,71 @@ class References:
         pass
     
     def load_persistence(self):
-        dirs = PlatformDirs("Fossa", "Joseph Hansen", ensure_exists=True)
-        appdata = dirs.user_data_path
-        if path.exists(appdata / "prefs.json"):
-            with (Path(appdata / "prefs.json").open(mode="r", encoding="utf-8")) as file:
+        preferences_path = self._preferences_path()
+        if preferences_path.exists():
+            with preferences_path.open(mode="r", encoding="utf-8") as file:
                 data = json.load(file)
-                for i in range(0, data['fontsize'], 1 if data['fontsize'] > 0 else -1):
-                    if data['fontsize'] > 0:
-                        self.increase_font_size()
-                    else:
-                        self.decrease_font_size()
         else:
-            with (Path(appdata / "prefs.json").open(mode="w", encoding="utf-8")) as file:
-                json.dump({'fontsize': 0}, file)
-                    
-    def save_font_size(self, ticks):
+            data = {"fontsize": 0}
+            self._write_preferences(data)
+
+        self.blender_file_path_variable.set(data.get("blender_file_path", ""))
+        self.network_base_path_variable.set(
+            data.get(
+                "network_base_path",
+                self.network_base_path_variable.get(),
+            )
+        )
+        font_size_ticks = data.get("fontsize", 0)
+        self._loading_persistence = True
+        try:
+            for _ in range(
+                0,
+                font_size_ticks,
+                1 if font_size_ticks > 0 else -1,
+            ):
+                if font_size_ticks > 0:
+                    self.increase_font_size()
+                else:
+                    self.decrease_font_size()
+        finally:
+            self._loading_persistence = False
+
+    def _preferences_path(self):
         dirs = PlatformDirs("Fossa", "Joseph Hansen", ensure_exists=True)
-        appdata = dirs.user_data_path
-        with (Path(appdata / "prefs.json").open(mode="r", encoding="utf-8")) as file:
-                data = json.load(file)
-                current_ticks = data["fontsize"]
-                current_ticks += ticks
-        with (Path(appdata / "prefs.json").open(mode="w", encoding="utf-8")) as file:
-                json.dump({'fontsize': ticks}, file)
+        return Path(dirs.user_data_path) / "prefs.json"
+
+    def _read_preferences(self):
+        preferences_path = self._preferences_path()
+        if not preferences_path.exists():
+            return {"fontsize": 0}
+        with preferences_path.open(mode="r", encoding="utf-8") as file:
+            data = json.load(file)
+        if not isinstance(data, dict):
+            raise ValueError("Fossa preferences must be a JSON object")
+        return data
+
+    def _write_preferences(self, data):
+        preferences_path = self._preferences_path()
+        with preferences_path.open(mode="w", encoding="utf-8") as file:
+            json.dump(data, file)
+
+    def save_blender_file_path(self, blender_file_path):
+        data = self._read_preferences()
+        data["blender_file_path"] = blender_file_path
+        self._write_preferences(data)
+
+    def save_network_base_path(self, network_base_path):
+        data = self._read_preferences()
+        data["network_base_path"] = network_base_path
+        self._write_preferences(data)
+
+    def save_font_size(self, ticks):
+        if getattr(self, "_loading_persistence", False):
+            return
+        data = self._read_preferences()
+        data["fontsize"] = data.get("fontsize", 0) + ticks
+        self._write_preferences(data)
             
     
     def increase_font_size(self):

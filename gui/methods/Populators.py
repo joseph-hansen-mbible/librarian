@@ -60,17 +60,34 @@ class Populators:
 
     @staticmethod
     def update_status_bar(ref):
-        text = "Database connected" if ref.database_connected else "Connection failure"
-        background = "green" if ref.database_connected else "red"
+        database_text = "Database connected" if ref.database_connected else "Connection failure"
+        database_background = "green" if ref.database_connected else "red"
+        
+        blender_text = "Fruitbat ready" if ref.blender_ready else "Set the path to Fruitbat executable in settings"
+        blender_background = "green" if ref.blender_ready else "red"
 
         if not hasattr(ref, "status_bar_database_connection"):
             ref.status_bar_database_connection = ttk.Label(
                         ref.statusbar,
-                        text=text,
+                        text=database_text,
                         font=ref.status_font,
                         anchor='center',
-                        background=background,
+                        background=database_background,
                     )
-            ref.status_bar_database_connection.pack(side="left", fill="x", expand=True)
+            
+            ref.status_bar_database_connection.pack(side="left", fill="x", expand=True, padx="2")
+            
         else:
-            ref.status_bar_database_connection.configure(text=text, background=background)
+            ref.status_bar_database_connection.configure(text=database_text, background=database_background)
+        
+        if not hasattr(ref, "status_bar_blender_connection"):
+            ref.status_bar_blender_connection = ttk.Label(
+                ref.statusbar,
+                text=blender_text,
+                font=ref.status_font,
+                anchor='center',
+                background=blender_background,
+            )
+            ref.status_bar_blender_connection.pack(side="left", fill="x", expand=True, padx="2")
+        else: 
+            ref.status_bar_blender_connection.configure(text=blender_text, background=blender_background)
