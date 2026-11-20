@@ -1,6 +1,5 @@
 from enum import Enum
 import datetime
-import fcntl
 import os
 from pathlib import Path
 import json
@@ -13,7 +12,7 @@ from platformdirs import PlatformDirs
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from db import fossadb
+from db import fossadb, file_lock
 
 class WorkerNames(Enum):
     PROKOKIEV = 0
@@ -160,7 +159,7 @@ class FossaWorker():
         registry_issue = None
 
         with worker_id_path.open(mode="a+", encoding="utf-8") as file:
-            fcntl.flock(file.fileno(), fcntl.LOCK_EX)
+            file_lock.flock(file.fileno(), file_lock.LOCK_EX)
             try:
                 file.seek(0)
                 existing = file.read()
@@ -200,7 +199,7 @@ class FossaWorker():
                 else:
                     raise RuntimeError("No available Fossa worker names")
             finally:
-                fcntl.flock(file.fileno(), fcntl.LOCK_UN)
+                file_lock.flock(file.fileno(), file_lock.LOCK_UN)
 
         if registry_issue is not None:
             self._ReportFailure(registry_issue)
@@ -449,7 +448,9 @@ class FossaWorker():
 
         lock_file = self.cache_role_lock_file_path.open(mode="a+", encoding="utf-8")
         try:
-            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            file_lock.flock(
+                lock_file.fileno(), file_lock.LOCK_EX | file_lock.LOCK_NB
+            )
         except BlockingIOError:
             lock_file.seek(0)
             current_worker = lock_file.read().strip() or "unknown worker"
@@ -485,7 +486,7 @@ class FossaWorker():
             lock_file.flush()
         finally:
             try:
-                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+                file_lock.flock(lock_file.fileno(), file_lock.LOCK_UN)
             finally:
                 lock_file.close()
                 self._cache_role_lock_handle = None
@@ -496,7 +497,7 @@ class FossaWorker():
         self.LogToRecords(f"releasing worker name {self.name}")
         worker_id_path = self.BuildLFPath(LFRoles.WORKER_ID)
         with worker_id_path.open(mode="a+", encoding="utf-8") as file:
-            fcntl.flock(file.fileno(), fcntl.LOCK_EX)
+            file_lock.flock(file.fileno(), file_lock.LOCK_EX)
             try:
                 file.seek(0)
                 existing = file.read().upper()
@@ -515,7 +516,7 @@ class FossaWorker():
                 )
                 file.flush()
             finally:
-                fcntl.flock(file.fileno(), fcntl.LOCK_UN)
+                file_lock.flock(file.fileno(), file_lock.LOCK_UN)
 
     def Destroy(self):
         if self._closed:

@@ -1,8 +1,9 @@
-import fcntl
 import json
 import os
 from pathlib import Path
 import uuid
+
+from db import file_lock
 
 
 class FossaDB:
@@ -49,14 +50,14 @@ class FossaDB:
 
     def _EnsureDatabaseFile(self):
         with self.lock_file_path.open(mode="a+", encoding="utf-8") as lock_file:
-            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+            file_lock.flock(lock_file.fileno(), file_lock.LOCK_EX)
             try:
                 if self.database_file_path.exists():
                     self._ReadDatabase()
                 else:
                     self._WriteDatabase({})
             finally:
-                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+                file_lock.flock(lock_file.fileno(), file_lock.LOCK_UN)
 
     def _ReadDatabase(self):
         if not self.database_file_path.exists():
@@ -148,8 +149,8 @@ class FossaDB:
 
         with self.lock_file_path.open(mode="a+", encoding="utf-8") as lock_file:
             try:
-                fcntl.flock(
-                    lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB
+                file_lock.flock(
+                    lock_file.fileno(), file_lock.LOCK_EX | file_lock.LOCK_NB
                 )
             except BlockingIOError:
                 return False
@@ -184,14 +185,14 @@ class FossaDB:
                 self._WriteDatabase(database)
                 return True
             finally:
-                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+                file_lock.flock(lock_file.fileno(), file_lock.LOCK_UN)
 
     def _TryUpdateFromNetworkCache(self, artist, network_cache_path):
         network_cache_path = Path(network_cache_path)
         with self.lock_file_path.open(mode="a+", encoding="utf-8") as lock_file:
             try:
-                fcntl.flock(
-                    lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB
+                file_lock.flock(
+                    lock_file.fileno(), file_lock.LOCK_EX | file_lock.LOCK_NB
                 )
             except BlockingIOError:
                 return False
@@ -237,4 +238,4 @@ class FossaDB:
                 network_cache_path.unlink()
                 return True
             finally:
-                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+                file_lock.flock(lock_file.fileno(), file_lock.LOCK_UN)
