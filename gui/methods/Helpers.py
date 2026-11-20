@@ -20,10 +20,10 @@ from objects.References import References
 from db import fossadb
 from workers import core
 
-CLOSE_APPLICATION_TIMEOUT_MS = 5_000
+CLOSE_APPLICATION_TIMEOUT_MS = 1_000
 CLOSE_APPLICATION_POLL_MS = 50
 
-def FossaMain(ref):
+def FossaMain(ref, on_ready=None):
     ref.update_status_bar = lambda: FossaStatusBar(ref, schedule=False)
 
     ref.main_window = Creators.setup_main_window(tk.Tk())
@@ -92,7 +92,10 @@ def FossaMain(ref):
     
     # last
     ref.load_persistence()
-    FossaStatusBar(ref, False)
+    FossaStatusBar(ref, True)
+
+    if on_ready is not None:
+        ref.main_window.after_idle(on_ready)
 
     FossaIcon(ref.main_window)
 
@@ -163,33 +166,27 @@ def FossaStatusBar(ref, schedule):
     )
 
     Populators.update_status_bar(ref)
-    FossaUpdateMainFileLists(ref, schedule=False)
+    FossaUpdateMainFileLists(ref, schedule=schedule)
     if schedule:
         ref.status_bar_timer = ref.main_window.after(
-            5_000, lambda: FossaStatusBar(ref)
+            5_000, lambda: FossaStatusBar(ref, schedule=True)
         )
 
 def FossaUpdateMainFileLists(ref, schedule):
     rows = []
-    project_selection = ref.project_listbox.curselection()
     artist_selection = ref.who_listbox.curselection()
 
     if (
-        project_selection
-        and artist_selection
+        artist_selection
         and getattr(ref, "database_connected", False)
         and ref.database is not None
     ):
-        project = ref.project_listbox.get(project_selection[0])
         artist = ref.who_listbox.get(artist_selection[0])
         database_checker = None
         try:
             database_checker = core.FossaWorker(
                 core.LFRoles.DB_ACCESS,
-                os.path.join(
-                    ref.network_base_path_variable.get(),
-                    project,
-                ),
+                ref.network_base_path_variable.get(),
                 artist,
                 ref.database,
             )
@@ -216,7 +213,7 @@ def FossaUpdateMainFileLists(ref, schedule):
     Populators.populate_current_files_table(ref, rows)
     if schedule:
         ref.main_file_lists_timer = ref.main_window.after(
-            2_000, lambda: FossaUpdateMainFileLists(ref)
+            2_000, lambda: FossaUpdateMainFileLists(ref, schedule=True)
         )
 
 def FossaCloseApplication(ref):

@@ -24,11 +24,21 @@ def main():
     who = Who.Who()
     ref = References()
     ref.who = who
-    Helpers.FossaMain(ref)
+    Helpers.FossaMain(
+        ref,
+        on_ready=lambda: CheckOutBlenderFile(
+            "test.blend", "Joseph Hansen", "Noah", ref
+        ),
+    )
 
 def CheckOutBlenderFile(filepath, artist, project, ref):
     if ref.database_connected:
-        core.FossaWorker(core.LFRoles.CACHING, os.path.join(ref.network_base_path_variable.get(), project), artist, ref.database).CheckOutBlenderFile(filepath)
+        core.FossaWorker(
+            core.LFRoles.CACHING,
+            os.path.join(ref.network_base_path_variable.get(), project),
+            artist,
+            ref.database,
+        ).CheckOutBlenderFile(filepath)
 
 def CheckInBlenderFile(artist, project, ref):
     # you can only checkout one at a time so the filepath doesn't matter
