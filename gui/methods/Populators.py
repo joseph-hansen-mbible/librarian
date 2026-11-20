@@ -21,11 +21,16 @@ class Populators:
             ref.project_listbox.activate(0)
     
     @staticmethod
-    def populate_current_files_table(ref):
-        row = ("File1.blend", "Joseph Hansen")
-        rows = [row, row, row, row, row, row]
-        for r in rows:
-            for column, value in enumerate(r):
+    def populate_current_files_table(ref, rows=None):
+        if rows is None:
+            rows = []
+
+        for widget in ref.current_files_table.winfo_children():
+            widget.destroy()
+        ref.current_files_table_next_row = 1
+
+        for row in rows:
+            for column, value in enumerate(row):
                 ttk.Label(
                     ref.current_files_table,
                     text=value,

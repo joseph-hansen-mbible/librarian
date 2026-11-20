@@ -601,6 +601,11 @@ class FossaWorker():
             network_base_path=self.network_base_path,
         )
 
+    def GetDatabaseSnapshot(self):
+        if self._closed:
+            return {}
+        return self.fossa_db.GetDatabaseSnapshot()
+
     def CheckOutBlenderFile(self, filepath):
         if self._closed:
             return False

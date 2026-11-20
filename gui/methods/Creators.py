@@ -313,6 +313,7 @@ class CreatorsMaintab:
                 font=ref.treeview_heading_font_small,
                 style="CurrentFiles.TLabel",
             ).grid(row=0, column=index, sticky='w', padx=(5, 8), pady=(8, 2))
+        
         return table
 
     @staticmethod

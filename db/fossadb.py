@@ -79,6 +79,15 @@ class FossaDB:
             return False
         return True
 
+    def GetDatabaseSnapshot(self):
+        """Return a consistent snapshot of the database JSON."""
+        with self.lock_file_path.open(mode="a+", encoding="utf-8") as lock_file:
+            file_lock.flock(lock_file.fileno(), file_lock.LOCK_EX)
+            try:
+                return self._ReadDatabase()
+            finally:
+                file_lock.flock(lock_file.fileno(), file_lock.LOCK_UN)
+
     def _WriteDatabase(self, database):
         temporary_path = self.database_file_path.with_name(
             f".fossa.db.{uuid.uuid4().hex}.tmp"
