@@ -153,7 +153,7 @@ class References:
         ref.locks_treeview.column("Status", width=50 + treeview_heading_adjustment, stretch=False)
         ref.locks_treeview.column("Checklist", width=100 + treeview_heading_adjustment, stretch=False)
         ref.locks_treeview.column("UA", width=50 + treeview_heading_adjustment, stretch=False)
-        ref.locks_treeview.column("Scene", width=50 + treeview_heading_adjustment, stretch=False)
+        ref.locks_treeview.column("Level", width=50 + treeview_heading_adjustment, stretch=False)
         ref.locks_treeview.column("Shot", width=50 + treeview_heading_adjustment, stretch=False)
         ref.locks_treeview.column("Version", width=60 + treeview_heading_adjustment, stretch=False)
         
@@ -188,7 +188,7 @@ class References:
         ref.locks_treeview.column("Status", width=50 + treeview_heading_adjustment, stretch=False)
         ref.locks_treeview.column("Checklist", width=100 + treeview_heading_adjustment, stretch=False)
         ref.locks_treeview.column("UA", width=50 + treeview_heading_adjustment, stretch=False)
-        ref.locks_treeview.column("Scene", width=50 + treeview_heading_adjustment, stretch=False)
+        ref.locks_treeview.column("Level", width=50 + treeview_heading_adjustment, stretch=False)
         ref.locks_treeview.column("Shot", width=50 + treeview_heading_adjustment, stretch=False)
         ref.locks_treeview.column("Version", width=60 + treeview_heading_adjustment, stretch=False)
         

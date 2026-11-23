@@ -37,23 +37,26 @@ class ProjectStructure:
 
         normalized_scenes = []
         seen_scenes = set()
-        for scene in scenes:
-            if not isinstance(scene, dict):
-                raise ValueError("Each project scene must be a JSON object")
-            name = scene.get("name")
-            subtitle = scene.get("subtitle", "")
-            shots = scene.get("shots")
+        for level in scenes:
+            if not isinstance(level, dict):
+                raise ValueError("Each project level must be a JSON object")
+            name = level.get("name")
+            subtitle = level.get("subtitle", "")
+            shots = level.get("shots")
+            settings = level.get("settings", [])
             if (
                 not isinstance(name, str)
                 or cls.SCENE_NUMBER_PATTERN.fullmatch(name) is None
             ):
-                raise ValueError(f"Scene numbers must be from 01 to 99: {name!r}")
+                raise ValueError(f"Level numbers must be from 01 to 99: {name!r}")
             if not isinstance(subtitle, str):
-                raise ValueError(f"Scene subtitle for {name!r} must be text")
+                raise ValueError(f"Level subtitle for {name!r} must be text")
             if not isinstance(shots, list):
-                raise ValueError(f"Shots for scene {name!r} must be a JSON array")
+                raise ValueError(f"Shots for level {name!r} must be a JSON array")
+            if not isinstance(settings, list):
+                raise ValueError(f"Settings for level {name!r} must be a JSON array")
             if name in seen_scenes:
-                raise ValueError(f"Scene {name!r} is duplicated")
+                raise ValueError(f"Level {name!r} is duplicated")
             seen_scenes.add(name)
 
             normalized_shots = []
@@ -67,7 +70,7 @@ class ProjectStructure:
                         f"Shot names must be XX or XXY, with XX from 01 to 99 and Y uppercase: {shot!r}"
                     )
                 if shot in seen_shots:
-                    raise ValueError(f"Shot {shot!r} is duplicated in scene {name!r}")
+                    raise ValueError(f"Shot {shot!r} is duplicated in level {name!r}")
                 seen_shots.add(shot)
                 normalized_shots.append(shot)
             normalized_scenes.append(
@@ -75,6 +78,7 @@ class ProjectStructure:
                     "name": name,
                     "subtitle": subtitle.strip(),
                     "shots": normalized_shots,
+                    "settings": cls._NormalizeNames(settings, "Setting"),
                 }
             )
 
@@ -111,26 +115,27 @@ class ProjectStructure:
             raise ValueError("Project scenes must be a JSON array")
 
         used_numbers = {
-            scene.get("name")
-            for scene in scenes
-            if isinstance(scene, dict)
-            and isinstance(scene.get("name"), str)
-            and cls.SCENE_NUMBER_PATTERN.fullmatch(scene["name"])
+            level.get("name")
+            for level in scenes
+            if isinstance(level, dict)
+            and isinstance(level.get("name"), str)
+            and cls.SCENE_NUMBER_PATTERN.fullmatch(level["name"])
         }
         normalized_scenes = []
         next_number = 1
-        for scene in scenes:
-            if not isinstance(scene, dict):
-                raise ValueError("Each project scene must be a JSON object")
-            name = scene.get("name")
+        for level in scenes:
+            if not isinstance(level, dict):
+                raise ValueError("Each project level must be a JSON object")
+            name = level.get("name")
             if not isinstance(name, str) or not name.strip():
-                raise ValueError("Scene names must be non-empty strings")
+                raise ValueError("Level names must be non-empty strings")
             if cls.SCENE_NUMBER_PATTERN.fullmatch(name):
                 normalized_scenes.append(
                     {
                         "name": name,
-                        "subtitle": scene.get("subtitle", ""),
-                        "shots": scene.get("shots", []),
+                        "subtitle": level.get("subtitle", ""),
+                        "shots": level.get("shots", []),
+                        "settings": level.get("settings", []),
                     }
                 )
                 continue
@@ -142,8 +147,9 @@ class ProjectStructure:
             normalized_scenes.append(
                 {
                     "name": f"{next_number:02}",
-                    "subtitle": scene.get("subtitle") or name.strip(),
-                    "shots": scene.get("shots", []),
+                    "subtitle": level.get("subtitle") or name.strip(),
+                    "shots": level.get("shots", []),
+                    "settings": level.get("settings", []),
                 }
             )
             used_numbers.add(f"{next_number:02}")

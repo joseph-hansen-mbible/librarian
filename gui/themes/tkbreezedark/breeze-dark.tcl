@@ -95,6 +95,14 @@ namespace eval ttk::theme::breeze-dark {
     set I(go-button-active) [CreateButtonImage $I(button-active) "37 41 45" "#1b5e20"]
     set I(go-button-hover) [CreateButtonImage $I(button-hover) "37 41 45" "#388e3c"]
     set I(go-button-focus) [CreateButtonImage $I(button-focus) "61 174 233" "#43a047"]
+    set I(approve-button) [CreateButtonImage $I(button) "37 41 45" "#24482a"]
+    set I(approve-button-active) [CreateButtonImage $I(button-active) "37 41 45" "#315f38"]
+    set I(approve-button-hover) [CreateButtonImage $I(button-hover) "37 41 45" "#2d5933"]
+    set I(approve-button-focus) [CreateButtonImage $I(button-focus) "61 174 233" "#3f7047"]
+    set I(reject-button) [CreateButtonImage $I(button) "37 41 45" "#6d2929"]
+    set I(reject-button-active) [CreateButtonImage $I(button-active) "37 41 45" "#853636"]
+    set I(reject-button-hover) [CreateButtonImage $I(button-hover) "37 41 45" "#7b3030"]
+    set I(reject-button-focus) [CreateButtonImage $I(button-focus) "61 174 233" "#a34a4a"]
 
     ttk::style theme create breeze-dark -parent default -settings {
         ttk::style configure . \
@@ -127,6 +135,22 @@ namespace eval ttk::theme::breeze-dark {
 
         ttk::style layout Go.TButton {
             GoButton.button -children {
+                Button.padding -children {
+                    Button.label -side left -expand true
+                }
+            }
+        }
+
+        ttk::style layout Approve.TButton {
+            ApproveButton.button -children {
+                Button.padding -children {
+                    Button.label -side left -expand true
+                }
+            }
+        }
+
+        ttk::style layout Reject.TButton {
+            RejectButton.button -children {
                 Button.padding -children {
                     Button.label -side left -expand true
                 }
@@ -189,6 +213,22 @@ namespace eval ttk::theme::breeze-dark {
                 {active focus}      $I(go-button-active) \
                 active              $I(go-button-hover) \
                 focus               $I(go-button-focus) \
+                disabled            $I(button-insensitive) \
+            ] -border 3 -sticky ewns
+
+        ttk::style element create ApproveButton.button image [list $I(approve-button) \
+                pressed             $I(approve-button-active) \
+                {active focus}      $I(approve-button-active) \
+                active              $I(approve-button-hover) \
+                focus               $I(approve-button-focus) \
+                disabled            $I(button-insensitive) \
+            ] -border 3 -sticky ewns
+
+        ttk::style element create RejectButton.button image [list $I(reject-button) \
+                pressed             $I(reject-button-active) \
+                {active focus}      $I(reject-button-active) \
+                active              $I(reject-button-hover) \
+                focus               $I(reject-button-focus) \
                 disabled            $I(button-insensitive) \
             ] -border 3 -sticky ewns
 
@@ -362,6 +402,8 @@ namespace eval ttk::theme::breeze-dark {
         #
 
         ttk::style configure TButton -padding {8 4 8 4} -width -10 -anchor center
+        ttk::style configure Approve.TButton -foreground $colors(-selectfg)
+        ttk::style configure Reject.TButton -foreground $colors(-selectfg)
         ttk::style configure TMenubutton -padding {8 4 4 4}
         ttk::style configure Toolbutton -padding {6 2} -anchor center
         ttk::style configure TCheckbutton -padding 4

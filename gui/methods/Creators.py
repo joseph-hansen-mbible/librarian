@@ -120,12 +120,12 @@ class CreatorsMaintab:
             style="CommandBar.TMenubutton",
         )
         ref.command_prop_optionbox.pack(side='left', padx=5)
-        ref.command_scene_var = tk.StringVar(value="Scene")
+        ref.command_scene_var = tk.StringVar(value="Level")
         ref.command_scene_optionbox = ttk.OptionMenu(
             ref.command_details_row,
             ref.command_scene_var,
-            "Scene",
-            "Scene",
+            "Level",
+            "Level",
             style="CommandBar.TMenubutton",
         )
         ref.command_scene_optionbox.pack(side='left', padx=5)
@@ -138,6 +138,15 @@ class CreatorsMaintab:
             style="CommandBar.TMenubutton",
         )
         ref.command_shot_optionbox.pack(side='left', padx=5)
+        ref.command_setting_var = tk.StringVar(value="Setting")
+        ref.command_setting_optionbox = ttk.OptionMenu(
+            ref.command_details_row,
+            ref.command_setting_var,
+            "Setting",
+            "Setting",
+            style="CommandBar.TMenubutton",
+        )
+        ref.command_setting_optionbox.pack(side='left', padx=5)
         ref.command_execute_button = ttk.Button(
             ref.command_details_row,
             text="Go",
@@ -151,6 +160,7 @@ class CreatorsMaintab:
             ref.command_prop_optionbox,
             ref.command_scene_optionbox,
             ref.command_shot_optionbox,
+            ref.command_setting_optionbox,
         ):
             optionbox["menu"].configure(font=command_font)
         
@@ -286,7 +296,7 @@ class CreatorsMaintab:
     
     @staticmethod
     def create_locks_treeview(ref):
-        columns = ("Project", "Scene", "Shot", "Version", "Type", "Status", "Checklist", "UA")
+        columns = ("Project", "Level", "Shot", "Version", "Type", "Status", "Checklist", "UA")
         filter_frame = ttk.Frame(ref.locks_frame)
         filter_frame.pack(fill='x', side='top', padx=5, pady=(0, 5))
         ttk.Label(filter_frame, text="Filter:").pack(side='left', padx=(0, 5))
@@ -304,7 +314,7 @@ class CreatorsMaintab:
         treeview.config(style="Small.Treeview")
         
         treeview.column("Status", width=100, stretch=False)
-        treeview.column("Scene", width=50, stretch=False)
+        treeview.column("Level", width=50, stretch=False)
         treeview.column("Shot", width=50, stretch=False)
         treeview.column("Checklist", width=100, stretch=False)
         treeview.column("UA", width=50, stretch=False)

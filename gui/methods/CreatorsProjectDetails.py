@@ -25,29 +25,36 @@ class CreatorsProjectDetails:
             ref.project_scene_listbox,
             ref.project_shot_listbox,
             ref.project_prop_listbox,
+            ref.project_setting_listbox,
         ):
             listbox.delete(0, tk.END)
         for character in project.characters:
             ref.project_character_listbox.insert(tk.END, character)
-        for scene in project.scenes:
+        for level in project.scenes:
             display_name = (
-                f'{scene["name"]} - {scene["subtitle"]}'
-                if scene.get("subtitle")
-                else scene["name"]
+                f'{level["name"]} - {level["subtitle"]}'
+                if level.get("subtitle")
+                else level["name"]
             )
             ref.project_scene_listbox.insert(tk.END, display_name)
-            for shot in scene["shots"]:
+            for shot in level["shots"]:
                 ref.project_shot_listbox.insert(
                     tk.END,
-                    f'{scene["name"]} / {shot}',
+                    f'{level["name"]} / {shot}',
+                )
+            for setting in level["settings"]:
+                ref.project_setting_listbox.insert(
+                    tk.END,
+                    f'{level["name"]} / {setting}',
                 )
         for prop in project.props:
             ref.project_prop_listbox.insert(tk.END, prop)
         structure_counts = (
             ("Characters", len(project.characters)),
-            ("Scenes", len(project.scenes)),
-            ("Shots", sum(len(scene["shots"]) for scene in project.scenes)),
+            ("Levels", len(project.scenes)),
+            ("Shots", sum(len(level["shots"]) for level in project.scenes)),
             ("Props", len(project.props)),
+            ("Settings", sum(len(level["settings"]) for level in project.scenes)),
         )
         for title, count in structure_counts:
             ref.project_structure_frames_by_title[title].configure(

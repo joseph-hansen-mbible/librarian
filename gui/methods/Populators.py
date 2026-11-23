@@ -75,6 +75,7 @@ class Populators:
                 ref.project_scene_listbox,
                 ref.project_shot_listbox,
                 ref.project_prop_listbox,
+                ref.project_setting_listbox,
             ):
                 listbox.delete(0, tk.END)
             for frame, title in ref.project_structure_frames.items():
@@ -131,7 +132,7 @@ class Populators:
         )
         ref.command_scene_var.trace_add(
             "write",
-            lambda *_: Populators.populate_command_shots(ref),
+            lambda *_: Populators.populate_command_level_fields(ref),
         )
         Populators.populate_command_structure_optionboxes(ref)
         Populators.update_command_action_fields(ref)
@@ -183,20 +184,20 @@ class Populators:
             ref,
             ref.command_scene_optionbox,
             ref.command_scene_var,
-            "Scene",
+            "Level",
             [
-                f'{scene["name"]} - {scene["subtitle"]}'
-                if scene.get("subtitle")
-                else scene["name"]
-                for scene in project.scenes
+                f'{level["name"]} - {level["subtitle"]}'
+                if level.get("subtitle")
+                else level["name"]
+                for level in project.scenes
             ]
             if project is not None
             else [],
         )
-        Populators.populate_command_shots(ref)
+        Populators.populate_command_level_fields(ref)
 
     @staticmethod
-    def populate_command_shots(ref):
+    def selected_command_level(ref):
         selected_project = ref.command_project_var.get()
         project = next(
             (
@@ -206,26 +207,48 @@ class Populators:
             ),
             None,
         )
-        selected_scene_text = ref.command_scene_var.get()
-        selected_scene = next(
+        if project is None:
+            return None
+        selected_level_text = ref.command_scene_var.get()
+        return next(
             (
-                scene
-                for scene in project.scenes
+                level
+                for level in project.scenes
                 if (
-                    f'{scene["name"]} - {scene["subtitle"]}'
-                    if scene.get("subtitle")
-                    else scene["name"]
+                    f'{level["name"]} - {level["subtitle"]}'
+                    if level.get("subtitle")
+                    else level["name"]
                 )
-                == selected_scene_text
+                == selected_level_text
             ),
             None,
-        ) if project is not None else None
+        )
+
+    @staticmethod
+    def populate_command_level_fields(ref):
+        Populators.populate_command_shots(ref)
+        Populators.populate_command_settings(ref)
+
+    @staticmethod
+    def populate_command_shots(ref):
+        selected_level = Populators.selected_command_level(ref)
         Populators._populate_optionbox(
             ref,
             ref.command_shot_optionbox,
             ref.command_shot_var,
             "Shot",
-            selected_scene["shots"] if selected_scene is not None else [],
+            selected_level["shots"] if selected_level is not None else [],
+        )
+
+    @staticmethod
+    def populate_command_settings(ref):
+        selected_level = Populators.selected_command_level(ref)
+        Populators._populate_optionbox(
+            ref,
+            ref.command_setting_optionbox,
+            ref.command_setting_var,
+            "Setting",
+            selected_level["settings"] if selected_level is not None else [],
         )
 
     @staticmethod
@@ -236,6 +259,7 @@ class Populators:
         ref.command_prop_optionbox.pack_forget()
         ref.command_scene_optionbox.pack_forget()
         ref.command_shot_optionbox.pack_forget()
+        ref.command_setting_optionbox.pack_forget()
 
         if action in Populators.CHARACTER_ACTIONS:
             ref.command_target_label.pack(
@@ -259,6 +283,16 @@ class Populators:
                 padx=5,
                 before=ref.command_execute_button,
             )
+            ref.command_scene_optionbox.pack(
+                side="left",
+                padx=5,
+                before=ref.command_execute_button,
+            )
+            ref.command_setting_optionbox.pack(
+                side="left",
+                padx=5,
+                before=ref.command_execute_button,
+            )
         elif action in Populators.SCENE_ONLY_ACTIONS | Populators.SHOT_ACTIONS:
             ref.command_target_label.pack(
                 side="left",
@@ -270,6 +304,12 @@ class Populators:
                 padx=5,
                 before=ref.command_execute_button,
             )
+            if action in Populators.SCENE_ONLY_ACTIONS:
+                ref.command_setting_optionbox.pack(
+                    side="left",
+                    padx=5,
+                    before=ref.command_execute_button,
+                )
             if action in Populators.SHOT_ACTIONS:
                 ref.command_shot_optionbox.pack(
                     side="left",
@@ -316,7 +356,7 @@ class Populators:
     
     @staticmethod
     def populate_locks_treeview(ref):
-        # ("Project", "Scene", "Shot", "Version", "Type", "Status", "Checklist", "UA")
+        # ("Project", "Level", "Shot", "Version", "Type", "Status", "Checklist", "UA")
         item = ref.locks_treeview.insert("", "end", values=("Noah", "1", "1", "1", "CharAnimGraybox", "WIP", "0/5", "0"))
         ref.all_files_item_ids.append(item)
 

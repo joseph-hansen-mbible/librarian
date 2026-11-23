@@ -26,7 +26,7 @@ class ProjectStructureDialogs:
                 result["value"] = value.get()
             popup.destroy()
 
-        ProjectStructureDialogs._add_cancel_button(
+        ProjectStructureDialogs.add_cancel_button(
             buttons,
             ref,
             lambda: finish(False),
@@ -43,19 +43,19 @@ class ProjectStructureDialogs:
         return result["value"]
 
     @staticmethod
-    def prompt_scene(parent, ref, title, scene=None):
+    def prompt_scene(parent, ref, title, level=None):
         result = {"value": None}
         popup = tk.Toplevel(parent)
         popup.title(title)
         popup.transient(parent)
         popup.resizable(False, False)
         number_var = tk.StringVar(
-            value=scene["name"] if scene is not None else ""
+            value=level["name"] if level is not None else ""
         )
         subtitle_var = tk.StringVar(
-            value=scene.get("subtitle", "") if scene is not None else ""
+            value=level.get("subtitle", "") if level is not None else ""
         )
-        ttk.Label(popup, text="Scene number (01-99)").grid(
+        ttk.Label(popup, text="Level number (01-99)").grid(
             row=0, column=0, sticky="w", padx=10, pady=(10, 4)
         )
         number_entry = ttk.Entry(popup, textvariable=number_var, width=12)
@@ -74,7 +74,7 @@ class ProjectStructureDialogs:
                 result["value"] = (number_var.get(), subtitle_var.get())
             popup.destroy()
 
-        ProjectStructureDialogs._add_cancel_button(
+        ProjectStructureDialogs.add_cancel_button(
             buttons,
             ref,
             lambda: finish(False),
@@ -113,7 +113,7 @@ class ProjectStructureDialogs:
                 result["value"] = value.get("1.0", "end-1c")
             popup.destroy()
 
-        ProjectStructureDialogs._add_cancel_button(
+        ProjectStructureDialogs.add_cancel_button(
             buttons,
             ref,
             lambda: finish(False),
@@ -130,15 +130,15 @@ class ProjectStructureDialogs:
         return result["value"]
 
     @staticmethod
-    def _add_cancel_button(parent, ref, command):
+    def add_cancel_button(parent, ref, command):
         return tk.Button(
             parent,
             text="Cancel",
             command=command,
-            bg="#35373c",
-            fg="#ffffff",
-            activebackground="#45484f",
-            activeforeground="#ffffff",
+            bg="#d9d9d9",
+            fg="#212121",
+            activebackground="#c6c6c6",
+            activeforeground="#212121",
             font=ref.scaled_system_fonts[0],
             relief="flat",
             padx=10,

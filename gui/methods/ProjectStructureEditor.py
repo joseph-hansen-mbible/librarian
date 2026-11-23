@@ -94,8 +94,8 @@ class ProjectStructureEditor:
         self.dialog = tk.Toplevel(ref.projects_tab)
         self.dialog.title(f"Project Structure - {self.project.name}")
         self.dialog.transient(ref.projects_tab)
-        self.dialog.geometry("1100x560")
-        self.dialog.minsize(850, 420)
+        self.dialog.geometry("1250x560")
+        self.dialog.minsize(1000, 420)
         self.dialog.grab_set()
 
         status_frame = ttk.Frame(self.dialog)
@@ -120,17 +120,20 @@ class ProjectStructureEditor:
 
         columns = ttk.Frame(self.dialog)
         columns.pack(fill="both", expand=True, padx=8, pady=8)
-        for column in range(4):
+        for column in range(5):
             columns.columnconfigure(column, weight=1, uniform="structure")
         columns.rowconfigure(0, weight=1)
 
         frames = {
             "characters": ttk.LabelFrame(columns, text="Characters"),
             "props": ttk.LabelFrame(columns, text="Props"),
-            "scenes": ttk.LabelFrame(columns, text="Scenes"),
+            "scenes": ttk.LabelFrame(columns, text="Levels"),
             "shots": ttk.LabelFrame(columns, text="Shots"),
+            "settings": ttk.LabelFrame(columns, text="Settings"),
         }
-        for column, key in enumerate(("characters", "props", "scenes", "shots")):
+        for column, key in enumerate(
+            ("characters", "props", "scenes", "shots", "settings")
+        ):
             frames[key].grid(row=0, column=column, sticky="nsew", padx=4)
         self.character_listbox = tk.Listbox(
             frames["characters"],
@@ -139,11 +142,16 @@ class ProjectStructureEditor:
         self.prop_listbox = tk.Listbox(frames["props"], exportselection=False)
         self.scene_listbox = tk.Listbox(frames["scenes"], exportselection=False)
         self.shot_listbox = tk.Listbox(frames["shots"], exportselection=False)
+        self.setting_listbox = tk.Listbox(
+            frames["settings"],
+            exportselection=False,
+        )
         for listbox in (
             self.character_listbox,
             self.prop_listbox,
             self.scene_listbox,
             self.shot_listbox,
+            self.setting_listbox,
         ):
             listbox.pack(fill="both", expand=True, padx=5, pady=5)
 
@@ -175,13 +183,16 @@ class ProjectStructureEditor:
             self.actions.rename_shot,
             self.actions.remove_shot,
         )
+        self._add_controls(
+            frames["settings"],
+            self.actions.add_setting,
+            None,
+            self.actions.rename_setting,
+            self.actions.remove_setting,
+        )
         self.scene_listbox.bind(
             "<<ListboxSelect>>",
-            lambda _event: self._refresh_shots(
-                self.selected_scene()["name"]
-                if self.selected_scene() is not None
-                else None
-            ),
+            self._on_level_selected,
         )
         self._refresh_lists(
             scene_name=self.draft["scenes"][0]["name"]
@@ -195,6 +206,7 @@ class ProjectStructureEditor:
             footer,
             text="Request Approval",
             command=self._submit_for_approval,
+            style="Approve.TButton",
         ).pack(side="right")
         ttk.Button(
             footer,
@@ -212,6 +224,8 @@ class ProjectStructureEditor:
             ("Rename", rename_command),
             ("Remove", remove_command),
         ):
+            if command is None:
+                continue
             ttk.Button(
                 controls,
                 text=label,
@@ -225,6 +239,7 @@ class ProjectStructureEditor:
         selected_shot=None,
         selected_character=None,
         selected_prop=None,
+        setting_name=None,
     ):
         try:
             self.ref.save_project_structure_draft(
@@ -253,6 +268,7 @@ class ProjectStructureEditor:
             selected_shot,
             selected_character,
             selected_prop,
+            setting_name,
         )
         self.ref.project_structure_status_label.configure(
             text="Unsubmitted draft saved locally"
@@ -265,38 +281,59 @@ class ProjectStructureEditor:
         return listbox.get(selection[0]) if selection else None
 
     @staticmethod
-    def display_scene(scene):
+    def display_scene(level):
         return (
-            f'{scene["name"]} - {scene["subtitle"]}'
-            if scene.get("subtitle")
-            else scene["name"]
+            f'{level["name"]} - {level["subtitle"]}'
+            if level.get("subtitle")
+            else level["name"]
         )
 
     def selected_scene(self):
         selected = self.selected_value(self.scene_listbox)
         return next(
             (
-                scene
-                for scene in self.draft["scenes"]
-                if self.display_scene(scene) == selected
+                level
+                for level in self.draft["scenes"]
+                if self.display_scene(level) == selected
             ),
             None,
         )
 
     def _refresh_shots(self, scene_name=None, shot_name=None):
         self.shot_listbox.delete(0, tk.END)
-        scene = next(
+        level = next(
             (item for item in self.draft["scenes"] if item["name"] == scene_name),
             None,
         )
-        if scene is None:
+        if level is None:
             return
-        for shot in scene["shots"]:
+        for shot in level["shots"]:
             self.shot_listbox.insert(tk.END, shot)
-        if shot_name in scene["shots"]:
-            index = scene["shots"].index(shot_name)
+        if shot_name in level["shots"]:
+            index = level["shots"].index(shot_name)
             self.shot_listbox.selection_set(index)
             self.shot_listbox.activate(index)
+
+    def _refresh_settings(self, scene_name=None, setting_name=None):
+        self.setting_listbox.delete(0, tk.END)
+        level = next(
+            (item for item in self.draft["scenes"] if item["name"] == scene_name),
+            None,
+        )
+        if level is None:
+            return
+        for setting in level["settings"]:
+            self.setting_listbox.insert(tk.END, setting)
+        if setting_name in level["settings"]:
+            index = level["settings"].index(setting_name)
+            self.setting_listbox.selection_set(index)
+            self.setting_listbox.activate(index)
+
+    def _on_level_selected(self, _event=None):
+        level = self.selected_scene()
+        scene_name = level["name"] if level is not None else None
+        self._refresh_shots(scene_name)
+        self._refresh_settings(scene_name)
 
     def _refresh_lists(
         self,
@@ -304,21 +341,24 @@ class ProjectStructureEditor:
         shot_name=None,
         character_name=None,
         prop_name=None,
+        setting_name=None,
     ):
         self.scene_listbox.delete(0, tk.END)
-        for scene in self.draft["scenes"]:
-            self.scene_listbox.insert(tk.END, self.display_scene(scene))
-        if scene_name in [scene["name"] for scene in self.draft["scenes"]]:
+        for level in self.draft["scenes"]:
+            self.scene_listbox.insert(tk.END, self.display_scene(level))
+        if scene_name in [level["name"] for level in self.draft["scenes"]]:
             index = next(
                 index
-                for index, scene in enumerate(self.draft["scenes"])
-                if scene["name"] == scene_name
+                for index, level in enumerate(self.draft["scenes"])
+                if level["name"] == scene_name
             )
             self.scene_listbox.selection_set(index)
             self.scene_listbox.activate(index)
             self._refresh_shots(scene_name, shot_name)
+            self._refresh_settings(scene_name, setting_name)
         else:
             self._refresh_shots()
+            self._refresh_settings()
 
         self.character_listbox.delete(0, tk.END)
         for character in self.draft["characters"]:
@@ -345,12 +385,12 @@ class ProjectStructureEditor:
             initial_value,
         )
 
-    def prompt_scene(self, title, scene=None):
+    def prompt_scene(self, title, level=None):
         return ProjectStructureDialogs.prompt_scene(
             self.dialog,
             self.ref,
             title,
-            scene,
+            level,
         )
 
     def prompt_bulk(self, title, prompt):
@@ -367,13 +407,14 @@ class ProjectStructureEditor:
             return
         updated = deepcopy(self.draft)
         updated["status"] = new_status
-        scene = self.selected_scene()
+        level = self.selected_scene()
         self.persist_draft(
             updated,
-            scene["name"] if scene is not None else None,
+            level["name"] if level is not None else None,
             self.selected_value(self.shot_listbox),
             self.selected_value(self.character_listbox),
             self.selected_value(self.prop_listbox),
+            self.selected_value(self.setting_listbox),
         )
 
     @staticmethod

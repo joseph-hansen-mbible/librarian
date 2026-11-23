@@ -5,6 +5,7 @@ from tkinter import filedialog, ttk
 
 from methods.CreatorsProjectApprovals import CreatorsProjectApprovals
 from methods.CreatorsProjectDetails import CreatorsProjectDetails
+from methods.ProjectStructureDialogs import ProjectStructureDialogs
 from objects.Project import Project, Status
 
 
@@ -102,14 +103,18 @@ class CreatorsProjects:
         )
         project_details_frame.grid_columnconfigure(0, weight=1)
         project_details_frame.grid_rowconfigure(3, weight=1)
-        structure_frame.grid_columnconfigure(0, weight=1, uniform="project-structure")
-        structure_frame.grid_columnconfigure(1, weight=1, uniform="project-structure")
-        structure_frame.grid_rowconfigure(0, weight=1)
-        structure_frame.grid_rowconfigure(1, weight=1)
         structure_widgets = {}
-        structure_titles = ("Characters", "Scenes", "Shots", "Props")
+        structure_titles = ("Characters", "Levels", "Shots", "Props", "Settings")
+        for column in range(3):
+            structure_frame.grid_columnconfigure(
+                column,
+                weight=1,
+                uniform="project-structure",
+            )
+        for row in range((len(structure_titles) + 2) // 3):
+            structure_frame.grid_rowconfigure(row, weight=1)
         for index, title in enumerate(structure_titles):
-            row, column = divmod(index, 2)
+            row, column = divmod(index, 3)
             label_frame = ttk.LabelFrame(
                 structure_frame,
                 text=f"{title} (0)",
@@ -143,7 +148,7 @@ class CreatorsProjects:
         )
         project_structure_button = ttk.Button(
             project_structure_buttons,
-            text="Edit Characters, Scenes, Shots, and Props",
+            text="Edit Characters, Levels, Shots, Props, and Settings",
             command=lambda: CreatorsProjectDetails.show_project_structure_editor(ref),
             state="disabled",
         )
@@ -178,9 +183,10 @@ class CreatorsProjects:
             title: structure_widgets[title][0] for title in structure_titles
         }
         ref.project_character_listbox = structure_widgets["Characters"][1]
-        ref.project_scene_listbox = structure_widgets["Scenes"][1]
+        ref.project_scene_listbox = structure_widgets["Levels"][1]
         ref.project_shot_listbox = structure_widgets["Shots"][1]
         ref.project_prop_listbox = structure_widgets["Props"][1]
+        ref.project_setting_listbox = structure_widgets["Settings"][1]
         project_listbox.bind(
             "<<ListboxSelect>>",
             lambda _event: CreatorsProjectDetails.show_project_details(ref),
@@ -276,10 +282,10 @@ class CreatorsProjects:
             padx=10,
             pady=10,
         )
-        ttk.Button(
+        ProjectStructureDialogs.add_cancel_button(
             button_row,
-            text="Cancel",
-            command=dialog.destroy,
+            ref,
+            dialog.destroy,
         ).pack(side="right", padx=(5, 0))
         ttk.Button(
             button_row,

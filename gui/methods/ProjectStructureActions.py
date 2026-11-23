@@ -11,22 +11,22 @@ class ProjectStructureActions:
 
     def add_scene(self):
         e = self.editor
-        values = e.prompt_scene("Add Scene")
+        values = e.prompt_scene("Add Level")
         if values is None:
             return
         name, subtitle = values
         name = name.strip()
         if ProjectStructure.SCENE_NUMBER_PATTERN.fullmatch(name) is None:
             messagebox.showerror(
-                "Invalid scene number",
-                "Scene numbers must be from 01 to 99.",
+                "Invalid level number",
+                "Level numbers must be from 01 to 99.",
                 parent=e.dialog,
             )
             return
-        if any(scene["name"] == name for scene in e.draft["scenes"]):
+        if any(level["name"] == name for level in e.draft["scenes"]):
             messagebox.showerror(
-                "Duplicate scene",
-                f"Scene {name} already exists.",
+                "Duplicate level",
+                f"Level {name} already exists.",
                 parent=e.dialog,
             )
             return
@@ -36,6 +36,7 @@ class ProjectStructureActions:
                 "name": name,
                 "subtitle": subtitle.strip(),
                 "shots": [],
+                "settings": [],
             }
         )
         e.persist_draft(updated, name)
@@ -45,35 +46,35 @@ class ProjectStructureActions:
         current = e.selected_scene()
         if current is None:
             return
-        values = e.prompt_scene("Rename Scene", current)
+        values = e.prompt_scene("Rename Level", current)
         if values is None:
             return
         name, subtitle = values
         name = name.strip()
         if ProjectStructure.SCENE_NUMBER_PATTERN.fullmatch(name) is None:
             messagebox.showerror(
-                "Invalid scene number",
-                "Scene numbers must be from 01 to 99.",
+                "Invalid level number",
+                "Level numbers must be from 01 to 99.",
                 parent=e.dialog,
             )
             return
         if any(
-            scene["name"] == name and scene["name"] != current["name"]
-            for scene in e.draft["scenes"]
+            level["name"] == name and level["name"] != current["name"]
+            for level in e.draft["scenes"]
         ):
             messagebox.showerror(
-                "Duplicate scene",
-                f"Scene {name} already exists.",
+                "Duplicate level",
+                f"Level {name} already exists.",
                 parent=e.dialog,
             )
             return
         updated = deepcopy(e.draft)
-        scene = next(
-            scene for scene in updated["scenes"]
-            if scene["name"] == current["name"]
+        level = next(
+            level for level in updated["scenes"]
+            if level["name"] == current["name"]
         )
-        scene["name"] = name
-        scene["subtitle"] = subtitle.strip()
+        level["name"] = name
+        level["subtitle"] = subtitle.strip()
         e.persist_draft(updated, name, e.selected_value(e.shot_listbox))
 
     def remove_scene(self):
@@ -83,18 +84,18 @@ class ProjectStructureActions:
             return
         updated = deepcopy(e.draft)
         updated["scenes"] = [
-            scene for scene in updated["scenes"]
-            if scene["name"] != selected["name"]
+            level for level in updated["scenes"]
+            if level["name"] != selected["name"]
         ]
         e.persist_draft(updated)
 
     def add_shot(self):
         e = self.editor
-        scene = e.selected_scene()
-        if scene is None:
+        level = e.selected_scene()
+        if level is None:
             messagebox.showinfo(
-                "Select a scene",
-                "Select a scene before adding a shot.",
+                "Select a level",
+                "Select a level before adding a shot.",
                 parent=e.dialog,
             )
             return
@@ -109,26 +110,26 @@ class ProjectStructureActions:
                 parent=e.dialog,
             )
             return
-        if name in scene["shots"]:
+        if name in level["shots"]:
             messagebox.showerror(
                 "Duplicate shot",
-                f"Shot {name!r} already exists in this scene.",
+                f"Shot {name!r} already exists in this level.",
                 parent=e.dialog,
             )
             return
         updated = deepcopy(e.draft)
         next_scene = next(
             item for item in updated["scenes"]
-            if item["name"] == scene["name"]
+            if item["name"] == level["name"]
         )
         next_scene["shots"].append(name)
-        e.persist_draft(updated, scene["name"], name)
+        e.persist_draft(updated, level["name"], name)
 
     def rename_shot(self):
         e = self.editor
-        scene = e.selected_scene()
+        level = e.selected_scene()
         selected = e.selected_value(e.shot_listbox)
-        if scene is None or selected is None:
+        if level is None or selected is None:
             return
         name = e.prompt_name("Rename Shot", "Shot name (XX or XXY):", selected)
         if name is None:
@@ -141,34 +142,118 @@ class ProjectStructureActions:
                 parent=e.dialog,
             )
             return
-        if name in scene["shots"] and name != selected:
+        if name in level["shots"] and name != selected:
             messagebox.showerror(
                 "Duplicate shot",
-                f"Shot {name!r} already exists in this scene.",
+                f"Shot {name!r} already exists in this level.",
                 parent=e.dialog,
             )
             return
         updated = deepcopy(e.draft)
         next_scene = next(
             item for item in updated["scenes"]
-            if item["name"] == scene["name"]
+            if item["name"] == level["name"]
         )
         next_scene["shots"][next_scene["shots"].index(selected)] = name
-        e.persist_draft(updated, scene["name"], name)
+        e.persist_draft(updated, level["name"], name)
 
     def remove_shot(self):
         e = self.editor
-        scene = e.selected_scene()
+        level = e.selected_scene()
         selected = e.selected_value(e.shot_listbox)
-        if scene is None or selected is None:
+        if level is None or selected is None:
             return
         updated = deepcopy(e.draft)
         next_scene = next(
             item for item in updated["scenes"]
-            if item["name"] == scene["name"]
+            if item["name"] == level["name"]
         )
         next_scene["shots"].remove(selected)
-        e.persist_draft(updated, scene["name"])
+        e.persist_draft(updated, level["name"])
+
+    def add_setting(self):
+        e = self.editor
+        level = e.selected_scene()
+        if level is None:
+            messagebox.showinfo(
+                "Select a level",
+                "Select a level before adding a setting.",
+                parent=e.dialog,
+            )
+            return
+        name = e.prompt_name("Add Setting", "Setting name:")
+        if name is None:
+            return
+        name = ProjectStructureDialogs.validate_unique_name(
+            e.dialog,
+            name,
+            level["settings"],
+            "Setting",
+        )
+        if name is None:
+            return
+        updated = deepcopy(e.draft)
+        next_level = next(
+            item for item in updated["scenes"]
+            if item["name"] == level["name"]
+        )
+        next_level["settings"].append(name)
+        e.persist_draft(
+            updated,
+            level["name"],
+            e.selected_value(e.shot_listbox),
+            setting_name=name,
+        )
+
+    def rename_setting(self):
+        e = self.editor
+        level = e.selected_scene()
+        selected = e.selected_value(e.setting_listbox)
+        if level is None or selected is None:
+            return
+        name = e.prompt_name("Rename Setting", "Setting name:", selected)
+        if name is None:
+            return
+        name = ProjectStructureDialogs.validate_unique_name(
+            e.dialog,
+            name,
+            [setting for setting in level["settings"] if setting != selected],
+            "Setting",
+        )
+        if name is None:
+            return
+        updated = deepcopy(e.draft)
+        next_level = next(
+            item for item in updated["scenes"]
+            if item["name"] == level["name"]
+        )
+        next_level["settings"][
+            next_level["settings"].index(selected)
+        ] = name
+        e.persist_draft(
+            updated,
+            level["name"],
+            e.selected_value(e.shot_listbox),
+            setting_name=name,
+        )
+
+    def remove_setting(self):
+        e = self.editor
+        level = e.selected_scene()
+        selected = e.selected_value(e.setting_listbox)
+        if level is None or selected is None:
+            return
+        updated = deepcopy(e.draft)
+        next_level = next(
+            item for item in updated["scenes"]
+            if item["name"] == level["name"]
+        )
+        next_level["settings"].remove(selected)
+        e.persist_draft(
+            updated,
+            level["name"],
+            e.selected_value(e.shot_listbox),
+        )
 
     def add_character(self):
         e = self.editor
@@ -299,13 +384,13 @@ class ProjectStructureActions:
     def add_bulk_scenes(self):
         e = self.editor
         raw = e.prompt_bulk(
-            "Bulk Add Scenes",
-            "Enter one scene per line: XX or XX: subtitle.",
+            "Bulk Add Levels",
+            "Enter one level per line: XX or XX: subtitle.",
         )
         if raw is None:
             return
         lines = ProjectStructureDialogs.bulk_lines(raw)
-        known = {scene["name"] for scene in e.draft["scenes"]}
+        known = {level["name"] for level in e.draft["scenes"]}
         additions = []
         errors = []
         for line_number, value in lines:
@@ -313,11 +398,11 @@ class ProjectStructureActions:
             number = number.strip()
             if ProjectStructure.SCENE_NUMBER_PATTERN.fullmatch(number) is None:
                 errors.append(
-                    f"Line {line_number}: scene number must be from 01 to 99."
+                    f"Line {line_number}: level number must be from 01 to 99."
                 )
             elif number in known:
                 errors.append(
-                    f"Line {line_number}: scene {number} already exists."
+                    f"Line {line_number}: level {number} already exists."
                 )
             else:
                 known.add(number)
@@ -326,6 +411,7 @@ class ProjectStructureActions:
                         "name": number,
                         "subtitle": subtitle.strip() if separator else "",
                         "shots": [],
+                        "settings": [],
                     }
                 )
         if errors:
@@ -334,7 +420,7 @@ class ProjectStructureActions:
         if not additions:
             messagebox.showinfo(
                 "Nothing to add",
-                "Enter at least one scene.",
+                "Enter at least one level.",
                 parent=e.dialog,
             )
             return
@@ -344,11 +430,11 @@ class ProjectStructureActions:
 
     def add_bulk_shots(self):
         e = self.editor
-        scene = e.selected_scene()
-        if scene is None:
+        level = e.selected_scene()
+        if level is None:
             messagebox.showinfo(
-                "Select a scene",
-                "Select a scene before bulk adding shots.",
+                "Select a level",
+                "Select a level before bulk adding shots.",
                 parent=e.dialog,
             )
             return
@@ -358,7 +444,7 @@ class ProjectStructureActions:
         )
         if raw is None:
             return
-        known = set(scene["shots"])
+        known = set(level["shots"])
         additions = []
         errors = []
         for line_number, name in ProjectStructureDialogs.bulk_lines(raw):
@@ -386,10 +472,10 @@ class ProjectStructureActions:
         updated = deepcopy(e.draft)
         next_scene = next(
             item for item in updated["scenes"]
-            if item["name"] == scene["name"]
+            if item["name"] == level["name"]
         )
         next_scene["shots"].extend(additions)
-        e.persist_draft(updated, scene["name"], additions[0])
+        e.persist_draft(updated, level["name"], additions[0])
 
     def _show_bulk_errors(self, kind, errors):
         messagebox.showerror(
