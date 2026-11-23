@@ -135,9 +135,11 @@ class References:
         ref.command_font.config(size=ref.command_font.actual()['size'] + 2)
         ref.treeview_heading_font.config(size=ref.treeview_heading_font.actual()['size'] + 2)
         ref.treeview_font.config(size=ref.treeview_font.actual()['size'] + 2)
-        ref.label_font.config(size=ref.treeview_font.actual()['size'] + 2)
+        ref.label_font.config(size=ref.label_font.actual()['size'] + 2)
         ref.status_font.config(size=ref.status_font.actual()['size'] + 2)
-        
+        for font in ref.scaled_system_fonts:
+            font.config(size=font.actual()["size"] + 2)
+
         ref.small_treeview_font.config(size=ref.small_treeview_font.actual()['size'] + 2)
         ref.treeview_heading_font_small.config(size=ref.treeview_heading_font_small.actual()['size'] + 2)
         ref.gray_font.config(size=ref.gray_font.actual()['size'] + 2)
@@ -168,9 +170,11 @@ class References:
         ref.command_font.config(size=ref.command_font.actual()['size'] - 2)
         ref.treeview_heading_font.config(size=ref.treeview_heading_font.actual()['size'] - 2)
         ref.treeview_font.config(size=ref.treeview_font.actual()['size'] - 2)
-        ref.label_font.config(size=ref.treeview_font.actual()['size'] - 2)
+        ref.label_font.config(size=ref.label_font.actual()['size'] - 2)
         ref.status_font.config(size=ref.status_font.actual()['size'] - 2)
-        
+        for font in ref.scaled_system_fonts:
+            font.config(size=font.actual()["size"] - 2)
+
         ref.small_treeview_font.config(size=ref.small_treeview_font.actual()['size'] - 2)
         ref.treeview_heading_font_small.config(size=ref.treeview_heading_font_small.actual()['size'] - 2)
         ref.gray_font.config(size=ref.gray_font.actual()['size'] - 2)
@@ -201,6 +205,10 @@ class References:
         ref = self
         style = ttk.Style(ref.main_window)
         ref.command_font = tkFont.Font(family="Helvetica", size=13, weight="bold")
+        ref.scaled_system_fonts = [
+            tkFont.nametofont(name)
+            for name in ("TkDefaultFont", "TkMenuFont", "TkTextFont")
+        ]
         style.configure("CommandBar.TLabel", font=ref.command_font)
         ref.treeview_heading_font = tkFont.Font(family="Helvetica", size=13, weight="normal")
         style.configure("Treeview.Heading", font=ref.treeview_heading_font)

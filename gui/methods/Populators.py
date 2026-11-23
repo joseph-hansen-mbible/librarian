@@ -2,19 +2,34 @@ import tkinter as tk
 from tkinter import ttk
 
 class Populators:
+    STATUS_SUCCESS_BACKGROUND = "#24482a"
+    STATUS_ERROR_BACKGROUND = "#6d2929"
+    APPROVE_BACKGROUND = "#24482a"
+    REJECT_BACKGROUND = "#6d2929"
+
     ACTIONS = (
         "Work on a character model",
         "Work on a character rig",
+        "Work on a prop",
         "Graybox",
         "Animate characters with graybox",
-        "Build a set",
-        "Texture and light a set",
+        "Work on a set",
         "Test character materials on set",
         "Composite a shot",
     )
     CHARACTER_ACTIONS = {
         "Work on a character model",
         "Work on a character rig",
+    }
+    PROP_ACTIONS = {"Work on a prop"}
+    SCENE_ONLY_ACTIONS = {
+        "Work on a set",
+        "Test character materials on set",
+    }
+    SHOT_ACTIONS = {
+        "Graybox",
+        "Animate characters with graybox",
+        "Composite a shot",
     }
 
     @staticmethod
@@ -51,9 +66,19 @@ class Populators:
             ref.project_details_label.configure(text="Project Details")
             ref.project_status_var.set("Status")
             ref.project_details_directory_path.configure(text="")
+            ref.project_status_menu.configure(state="disabled")
             ref.project_structure_status_label.configure(text="")
             ref.project_structure_button.configure(state="disabled")
             ref.project_structure_discard_button.configure(state="disabled")
+            for listbox in (
+                ref.project_character_listbox,
+                ref.project_scene_listbox,
+                ref.project_shot_listbox,
+                ref.project_prop_listbox,
+            ):
+                listbox.delete(0, tk.END)
+            for frame, title in ref.project_structure_frames.items():
+                frame.configure(text=f"{title} (0)")
             ref.command_project_var.set("Project")
 
     @staticmethod
@@ -149,10 +174,22 @@ class Populators:
         )
         Populators._populate_optionbox(
             ref,
+            ref.command_prop_optionbox,
+            ref.command_prop_var,
+            "Prop",
+            project.props if project is not None else [],
+        )
+        Populators._populate_optionbox(
+            ref,
             ref.command_scene_optionbox,
             ref.command_scene_var,
             "Scene",
-            [scene["name"] for scene in project.scenes]
+            [
+                f'{scene["name"]} - {scene["subtitle"]}'
+                if scene.get("subtitle")
+                else scene["name"]
+                for scene in project.scenes
+            ]
             if project is not None
             else [],
         )
@@ -161,7 +198,6 @@ class Populators:
     @staticmethod
     def populate_command_shots(ref):
         selected_project = ref.command_project_var.get()
-        selected_scene = ref.command_scene_var.get()
         project = next(
             (
                 project
@@ -170,11 +206,17 @@ class Populators:
             ),
             None,
         )
-        scene = next(
+        selected_scene_text = ref.command_scene_var.get()
+        selected_scene = next(
             (
                 scene
                 for scene in project.scenes
-                if scene["name"] == selected_scene
+                if (
+                    f'{scene["name"]} - {scene["subtitle"]}'
+                    if scene.get("subtitle")
+                    else scene["name"]
+                )
+                == selected_scene_text
             ),
             None,
         ) if project is not None else None
@@ -183,7 +225,7 @@ class Populators:
             ref.command_shot_optionbox,
             ref.command_shot_var,
             "Shot",
-            scene["shots"] if scene is not None else [],
+            selected_scene["shots"] if selected_scene is not None else [],
         )
 
     @staticmethod
@@ -191,6 +233,7 @@ class Populators:
         action = ref.command_action_var.get()
         ref.command_target_label.pack_forget()
         ref.command_character_optionbox.pack_forget()
+        ref.command_prop_optionbox.pack_forget()
         ref.command_scene_optionbox.pack_forget()
         ref.command_shot_optionbox.pack_forget()
 
@@ -205,7 +248,18 @@ class Populators:
                 padx=5,
                 before=ref.command_execute_button,
             )
-        elif action in Populators.ACTIONS:
+        elif action in Populators.PROP_ACTIONS:
+            ref.command_target_label.pack(
+                side="left",
+                padx=5,
+                before=ref.command_execute_button,
+            )
+            ref.command_prop_optionbox.pack(
+                side="left",
+                padx=5,
+                before=ref.command_execute_button,
+            )
+        elif action in Populators.SCENE_ONLY_ACTIONS | Populators.SHOT_ACTIONS:
             ref.command_target_label.pack(
                 side="left",
                 padx=5,
@@ -216,11 +270,12 @@ class Populators:
                 padx=5,
                 before=ref.command_execute_button,
             )
-            ref.command_shot_optionbox.pack(
-                side="left",
-                padx=5,
-                before=ref.command_execute_button,
-            )
+            if action in Populators.SHOT_ACTIONS:
+                ref.command_shot_optionbox.pack(
+                    side="left",
+                    padx=5,
+                    before=ref.command_execute_button,
+                )
     
     @staticmethod
     def populate_current_files_table(ref, rows=None):
@@ -268,10 +323,18 @@ class Populators:
     @staticmethod
     def update_status_bar(ref):
         database_text = "Database connected" if ref.database_connected else "Connection failure"
-        database_background = "#2c532f" if ref.database_connected else "red"
+        database_background = (
+            Populators.STATUS_SUCCESS_BACKGROUND
+            if ref.database_connected
+            else Populators.STATUS_ERROR_BACKGROUND
+        )
         
         blender_text = "Fruitbat ready" if ref.blender_ready else "Set the path to Fruitbat executable in settings"
-        blender_background = "#2c532f" if ref.blender_ready else "red"
+        blender_background = (
+            Populators.STATUS_SUCCESS_BACKGROUND
+            if ref.blender_ready
+            else Populators.STATUS_ERROR_BACKGROUND
+        )
 
         if not hasattr(ref, "status_bar_database_connection"):
             ref.status_bar_database_connection = ttk.Label(
@@ -280,13 +343,17 @@ class Populators:
                         font=ref.status_font,
                         anchor='center',
                         background=database_background,
-                        foreground="#aaaaaa"
+                        foreground="#ffffff"
                     )
             
             ref.status_bar_database_connection.pack(side="left", fill="x", expand=True, padx="2")
             
         else:
-            ref.status_bar_database_connection.configure(text=database_text, background=database_background)
+            ref.status_bar_database_connection.configure(
+                text=database_text,
+                background=database_background,
+                foreground="#ffffff",
+            )
         
         if not hasattr(ref, "status_bar_blender_connection"):
             ref.status_bar_blender_connection = ttk.Label(
@@ -295,8 +362,12 @@ class Populators:
                 font=ref.status_font,
                 anchor='center',
                 background=blender_background,
-                foreground="#aaaaaa"
+                foreground="#ffffff"
             )
             ref.status_bar_blender_connection.pack(side="left", fill="x", expand=True, padx="2")
         else: 
-            ref.status_bar_blender_connection.configure(text=blender_text, background=blender_background)
+            ref.status_bar_blender_connection.configure(
+                text=blender_text,
+                background=blender_background,
+                foreground="#ffffff",
+            )

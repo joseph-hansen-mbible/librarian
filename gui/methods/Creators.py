@@ -111,6 +111,15 @@ class CreatorsMaintab:
             style="CommandBar.TMenubutton",
         )
         ref.command_character_optionbox.pack(side='left', padx=5)
+        ref.command_prop_var = tk.StringVar(value="Prop")
+        ref.command_prop_optionbox = ttk.OptionMenu(
+            ref.command_details_row,
+            ref.command_prop_var,
+            "Prop",
+            "Prop",
+            style="CommandBar.TMenubutton",
+        )
+        ref.command_prop_optionbox.pack(side='left', padx=5)
         ref.command_scene_var = tk.StringVar(value="Scene")
         ref.command_scene_optionbox = ttk.OptionMenu(
             ref.command_details_row,
@@ -135,6 +144,15 @@ class CreatorsMaintab:
             style="Go.TButton",
         )
         ref.command_execute_button.pack(side='left', padx=5)
+        for optionbox in (
+            ref.command_action_optionbox,
+            ref.command_project_optionbox,
+            ref.command_character_optionbox,
+            ref.command_prop_optionbox,
+            ref.command_scene_optionbox,
+            ref.command_shot_optionbox,
+        ):
+            optionbox["menu"].configure(font=command_font)
         
     @staticmethod
     def create_current_files_frame(parent):

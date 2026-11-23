@@ -18,6 +18,7 @@ class Project:
         directory_path,
         scenes=None,
         characters=None,
+        props=None,
         pending_change=None,
     ):
         self._name = name
@@ -26,6 +27,7 @@ class Project:
         self._directory_path = directory_path
         self._scenes = deepcopy(scenes) if scenes is not None else []
         self._characters = list(characters) if characters is not None else []
+        self._props = list(props) if props is not None else []
         self._pending_change = deepcopy(pending_change)
         self._tag_color = self.determine_tag_color()
         
@@ -68,6 +70,10 @@ class Project:
     @property
     def characters(self):
         return self._characters
+
+    @property
+    def props(self):
+        return self._props
 
     @property
     def pending_change(self):

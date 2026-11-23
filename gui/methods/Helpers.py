@@ -16,6 +16,7 @@ from whoami import Who
 from methods.Populators import Populators
 from methods.Creators import CreatorsMaintab as Creators
 from methods.CreatorsSettings import CreatorsSettings
+from methods.CreatorsProjects import CreatorsProjects
 from objects.References import References
 from db import fossadb
 from workers import core
@@ -36,6 +37,14 @@ def FossaMain(ref, on_ready=None):
     theme_script = PROJECT_ROOT / "themes" / "tkbreezedark" / "breeze-dark.tcl"
     ref.main_window.tk.call("source", str(theme_script))
     style.theme_use("breeze-dark")
+    style.map(
+        "TNotebook.Tab",
+        background=[
+            ("selected", "#25292d"),
+            ("active", "#3b4045"),
+        ],
+        foreground=[("selected", "#eff0f1")],
+    )
     
     FossaMenus(ref)
     ref.setup_fonts()
@@ -56,11 +65,14 @@ def FossaMain(ref, on_ready=None):
     
     ref.main_tab.ref = ref
     ref.main_window.ref = ref
+    ref.projects_tab = CreatorsProjects.create_projects_tab(
+        ref,
+        ref.tabs_container,
+    )
+    ref.projects_tab.ref = ref
     
     ref.all_files_tab = Creators.create_tab_all_files(ref.tabs_container)
     ref.all_files_tab.ref = ref
-    
-    ref.projects_frame = CreatorsSettings.create_settings_projects_frame(ref)
     
     ref.file_lists_frame = Creators.create_file_lists_frame(ref.main_tab)
     ref.recent_files_frame = Creators.create_recent_files_frame(ref.file_lists_frame)
@@ -103,7 +115,7 @@ def FossaMain(ref, on_ready=None):
     FossaCheckProjectApprovals(ref, schedule=True)
 
     if on_ready is not None:
-        ref.main_window.after_idle(on_ready)
+        ref.main_ready_timer = ref.main_window.after_idle(on_ready)
 
     FossaIcon(ref.main_window)
 
@@ -175,7 +187,7 @@ def FossaStatusBar(ref, schedule):
 
     Populators.update_status_bar(ref)
     FossaUpdateMainFileLists(ref, schedule=False)
-    if schedule:
+    if schedule and not getattr(ref, "_close_application_started", False):
         ref.status_bar_timer = ref.main_window.after(
             5_000, lambda: FossaStatusBar(ref, schedule=True)
         )
@@ -218,7 +230,7 @@ def FossaUpdateMainFileLists(ref, schedule):
                 database_checker.Destroy()
 
     Populators.populate_current_files_table(ref, rows)
-    if schedule:
+    if schedule and not getattr(ref, "_close_application_started", False):
         ref.main_file_lists_timer = ref.main_window.after(
             2_000, lambda: FossaUpdateMainFileLists(ref, schedule=True)
         )
@@ -242,6 +254,7 @@ def FossaUpdateProjects(ref, schedule):
                     record["directory_path"],
                     scenes=record.get("scenes", []),
                     characters=record.get("characters", []),
+                    props=record.get("props", []),
                     pending_change=record.get("pending_change"),
                 )
                 for record in project_records
@@ -256,12 +269,14 @@ def FossaUpdateProjects(ref, schedule):
     if projects is not None:
         Populators.populate_project_listbox(ref, projects)
         Populators.populate_command_project_optionbox(ref, projects)
-    if schedule:
+    if schedule and not getattr(ref, "_close_application_started", False):
         ref.projects_timer = ref.main_window.after(
             5_000, lambda: FossaUpdateProjects(ref, schedule=True)
         )
 
 def FossaCheckProjectApprovals(ref, schedule):
+    if getattr(ref, "_close_application_started", False):
+        return
     results_found = False
     pending_changes = []
     worker = None
@@ -300,9 +315,12 @@ def FossaCheckProjectApprovals(ref, schedule):
 
     if not getattr(ref, "_approval_dialog_open", False):
         for change in pending_changes:
-            if change["requester"] != ref.selected_who:
+            if (
+                change["requester"] != ref.selected_who
+                and ref.selected_who not in change.get("approvals", [])
+            ):
                 ref._approval_dialog_open = True
-                CreatorsSettings.show_project_change_approval_dialog(
+                CreatorsProjects.show_project_change_approval_dialog(
                     ref,
                     change,
                     lambda approved, _change=change: FossaResolveProjectApproval(
@@ -311,12 +329,14 @@ def FossaCheckProjectApprovals(ref, schedule):
                 )
                 break
 
-    if schedule:
+    if schedule and not getattr(ref, "_close_application_started", False):
         ref.approval_poll_timer = ref.main_window.after(
-            60_000, lambda: FossaCheckProjectApprovals(ref, schedule=True)
+            20_000, lambda: FossaCheckProjectApprovals(ref, schedule=True)
         )
 
 def FossaResolveProjectApproval(ref, change, approved):
+    if getattr(ref, "_close_application_started", False):
+        return False
     worker = None
     try:
         worker = core.FossaWorker(
@@ -346,10 +366,29 @@ def FossaResolveProjectApproval(ref, change, approved):
 
     ref._approval_dialog_open = False
     FossaUpdateProjects(ref, schedule=False)
-    ref.main_window.after_idle(
+    ref.approval_check_idle_timer = ref.main_window.after_idle(
         lambda: FossaCheckProjectApprovals(ref, schedule=False)
     )
     return True
+
+def _cancel_scheduled_callbacks(ref, main_window):
+    for timer_name in (
+        "main_ready_timer",
+        "status_bar_timer",
+        "main_file_lists_timer",
+        "projects_timer",
+        "approval_poll_timer",
+        "approval_check_idle_timer",
+        "close_poll_timer",
+    ):
+        timer_id = getattr(ref, timer_name, None)
+        if timer_id is None:
+            continue
+        try:
+            main_window.after_cancel(timer_id)
+        except tk.TclError:
+            pass
+        setattr(ref, timer_name, None)
 
 def FossaCloseApplication(ref):
     if getattr(ref, "_close_application_started", False):
@@ -357,6 +396,7 @@ def FossaCloseApplication(ref):
     ref._close_application_started = True
 
     main_window = ref.main_window
+    _cancel_scheduled_callbacks(ref, main_window)
     cleanup_error = [None]
     started_at = time.monotonic()
     destroy_started = [False]
@@ -365,6 +405,7 @@ def FossaCloseApplication(ref):
         if destroy_started[0]:
             return
         destroy_started[0] = True
+        _cancel_scheduled_callbacks(ref, main_window)
         try:
             main_window.destroy()
         except tk.TclError:
@@ -377,6 +418,7 @@ def FossaCloseApplication(ref):
             cleanup_error[0] = error
 
     def poll_close():
+        ref.close_poll_timer = None
         elapsed_ms = (time.monotonic() - started_at) * 1000
         worker = getattr(ref, "_close_application_cleanup", None)
         if worker is not None and not worker.is_alive():
@@ -390,7 +432,10 @@ def FossaCloseApplication(ref):
         if elapsed_ms >= CLOSE_APPLICATION_TIMEOUT_MS:
             destroy_window()
             return
-        main_window.after(CLOSE_APPLICATION_POLL_MS, poll_close)
+        ref.close_poll_timer = main_window.after(
+            CLOSE_APPLICATION_POLL_MS,
+            poll_close,
+        )
 
     cleanup_worker = threading.Thread(
         target=clean_up_workers,
@@ -399,4 +444,7 @@ def FossaCloseApplication(ref):
     )
     ref._close_application_cleanup = cleanup_worker
     cleanup_worker.start()
-    main_window.after(CLOSE_APPLICATION_POLL_MS, poll_close)
+    ref.close_poll_timer = main_window.after(
+        CLOSE_APPLICATION_POLL_MS,
+        poll_close,
+    )

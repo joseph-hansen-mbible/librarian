@@ -64,6 +64,8 @@ namespace eval ttk::theme::breeze-dark {
     }
 
     LoadImages [file join [file dirname [info script]] breeze-dark]
+    RecolorImage $I(notebook-tab-top-active) "47 51 54" "#25292d"
+    RecolorImage $I(notebook-tab-top-active) "71 74 77" "#353a3f"
     RecolorImage $I(button) "49 54 59" $colors(-controlbg)
     RecolorImage $I(button-active) "49 54 59" $colors(-controlbg)
     RecolorImage $I(button-empty) "49 54 59" $colors(-controlbg)
