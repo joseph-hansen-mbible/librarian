@@ -51,15 +51,20 @@ class CreatorsMaintab:
     
     @staticmethod
     def fill_command_entry_frame(ref):
-        # "I want to..." label + action optionbox + "in" + project optionbox + "for" + scene optionbox + shot optionbox
+        # Keep the action on its own row so project and target selectors fit below it.
         style = ttk.Style(ref.command_bar_frame)
         command_font = ref.command_font
         style.configure("CommandBar.TLabel", font=command_font)
         style.configure("CommandBar.TMenubutton", font=command_font)
         style.configure("Go.TButton", font=command_font, padding=(12, 6))
 
+        ref.command_action_row = ttk.Frame(ref.command_bar_frame)
+        ref.command_action_row.pack(side="top", fill="x", anchor="w")
+        ref.command_details_row = ttk.Frame(ref.command_bar_frame)
+        ref.command_details_row.pack(side="top", fill="x", anchor="w", pady=(5, 0))
+
         action_label = ttk.Label(
-            ref.command_bar_frame,
+            ref.command_action_row,
             text="I want to",
             style="CommandBar.TLabel",
             font=command_font,
@@ -67,7 +72,7 @@ class CreatorsMaintab:
         action_label.pack(side='left', padx=5)
         ref.command_action_var = tk.StringVar(value="Action")
         ref.command_action_optionbox = ttk.OptionMenu(
-            ref.command_bar_frame,
+            ref.command_action_row,
             ref.command_action_var,
             "Action",
             "Action",
@@ -75,7 +80,7 @@ class CreatorsMaintab:
         )
         ref.command_action_optionbox.pack(side='left', padx=5)
         second_command_label = ttk.Label(
-            ref.command_bar_frame,
+            ref.command_details_row,
             text="in",
             style="CommandBar.TLabel",
             font=command_font,
@@ -83,23 +88,32 @@ class CreatorsMaintab:
         second_command_label.pack(side='left', padx=5)
         ref.command_project_var = tk.StringVar(value="Project")
         ref.command_project_optionbox = ttk.OptionMenu(
-            ref.command_bar_frame,
+            ref.command_details_row,
             ref.command_project_var,
             "Project",
             "Project",
             style="CommandBar.TMenubutton",
         )
         ref.command_project_optionbox.pack(side='left', padx=5)
-        third_command_label = ttk.Label(
-            ref.command_bar_frame,
+        ref.command_target_label = ttk.Label(
+            ref.command_details_row,
             text="for",
             style="CommandBar.TLabel",
             font=command_font,
         )
-        third_command_label.pack(side='left', padx=5)
+        ref.command_target_label.pack(side='left', padx=5)
+        ref.command_character_var = tk.StringVar(value="Character")
+        ref.command_character_optionbox = ttk.OptionMenu(
+            ref.command_details_row,
+            ref.command_character_var,
+            "Character",
+            "Character",
+            style="CommandBar.TMenubutton",
+        )
+        ref.command_character_optionbox.pack(side='left', padx=5)
         ref.command_scene_var = tk.StringVar(value="Scene")
         ref.command_scene_optionbox = ttk.OptionMenu(
-            ref.command_bar_frame,
+            ref.command_details_row,
             ref.command_scene_var,
             "Scene",
             "Scene",
@@ -108,7 +122,7 @@ class CreatorsMaintab:
         ref.command_scene_optionbox.pack(side='left', padx=5)
         ref.command_shot_var = tk.StringVar(value="Shot")
         ref.command_shot_optionbox = ttk.OptionMenu(
-            ref.command_bar_frame,
+            ref.command_details_row,
             ref.command_shot_var,
             "Shot",
             "Shot",
@@ -116,7 +130,7 @@ class CreatorsMaintab:
         )
         ref.command_shot_optionbox.pack(side='left', padx=5)
         ref.command_execute_button = ttk.Button(
-            ref.command_bar_frame,
+            ref.command_details_row,
             text="Go",
             style="Go.TButton",
         )

@@ -1,5 +1,6 @@
 from enum import Enum
 import os
+from copy import deepcopy
 
 class Status(Enum):
     NOT_STARTED = "Not Started"
@@ -10,11 +11,22 @@ class Status(Enum):
     CANCELED = "Canceled"
     
 class Project:
-    def __init__(self, name, status, directory_path):
+    def __init__(
+        self,
+        name,
+        status,
+        directory_path,
+        scenes=None,
+        characters=None,
+        pending_change=None,
+    ):
         self._name = name
         self._status = status if isinstance(status, Status) else Status.NOT_STARTED
         self._id = name.lower().replace(" ", "_")
         self._directory_path = directory_path
+        self._scenes = deepcopy(scenes) if scenes is not None else []
+        self._characters = list(characters) if characters is not None else []
+        self._pending_change = deepcopy(pending_change)
         self._tag_color = self.determine_tag_color()
         
     def determine_tag_color(self):
@@ -48,6 +60,18 @@ class Project:
     @property
     def directory_path(self):
         return self._directory_path
+
+    @property
+    def scenes(self):
+        return self._scenes
+
+    @property
+    def characters(self):
+        return self._characters
+
+    @property
+    def pending_change(self):
+        return self._pending_change
 
     @property
     def tag_color(self):

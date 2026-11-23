@@ -24,6 +24,7 @@ CLOSE_APPLICATION_TIMEOUT_MS = 1_000
 CLOSE_APPLICATION_POLL_MS = 50
 
 def FossaMain(ref, on_ready=None):
+    ref.load_selected_who()
     ref.update_status_bar = lambda: FossaStatusBar(ref, schedule=False)
 
     ref.main_window = Creators.setup_main_window(tk.Tk())
@@ -81,18 +82,25 @@ def FossaMain(ref, on_ready=None):
     Creators.create_locks_treeview(ref)
     Creators.create_locks_details_buttons(ref)
     
-    CreatorsSettings.create_settings_who_frame(ref)
     CreatorsSettings.create_settings_other_frame(ref)
     
-    Populators.populate_who_listbox(ref, ref.who)
     Populators.populate_project_listbox(ref, [])
+    Populators.initialize_command_bar(ref)
     Populators.populate_recent_files_treeview(ref)
     Populators.populate_current_files_table(ref)
     Populators.populate_locks_treeview(ref)
     
     # last
     ref.load_persistence()
+    if ref.selected_who is None:
+        CreatorsSettings.create_settings_who_frame(ref)
+        Populators.populate_who_listbox(ref, ref.who)
+        ref.main_window.withdraw()
+        CreatorsSettings.show_settings_window(ref)
     FossaStatusBar(ref, True)
+    FossaUpdateMainFileLists(ref, schedule=True)
+    FossaUpdateProjects(ref, schedule=True)
+    FossaCheckProjectApprovals(ref, schedule=True)
 
     if on_ready is not None:
         ref.main_window.after_idle(on_ready)
@@ -166,7 +174,7 @@ def FossaStatusBar(ref, schedule):
     )
 
     Populators.update_status_bar(ref)
-    FossaUpdateMainFileLists(ref, schedule=schedule)
+    FossaUpdateMainFileLists(ref, schedule=False)
     if schedule:
         ref.status_bar_timer = ref.main_window.after(
             5_000, lambda: FossaStatusBar(ref, schedule=True)
@@ -174,19 +182,18 @@ def FossaStatusBar(ref, schedule):
 
 def FossaUpdateMainFileLists(ref, schedule):
     rows = []
-    artist_selection = ref.who_listbox.curselection()
+    artist = getattr(ref, "selected_who", None)
 
     if (
-        artist_selection
+        artist
         and getattr(ref, "database_connected", False)
         and ref.database is not None
     ):
-        artist = ref.who_listbox.get(artist_selection[0])
         database_checker = None
         try:
             database_checker = core.FossaWorker(
                 core.LFRoles.DB_ACCESS,
-                ref.network_base_path_variable.get(),
+                ref.get_worker_network_base_path(),
                 artist,
                 ref.database,
             )
@@ -215,6 +222,134 @@ def FossaUpdateMainFileLists(ref, schedule):
         ref.main_file_lists_timer = ref.main_window.after(
             2_000, lambda: FossaUpdateMainFileLists(ref, schedule=True)
         )
+
+def FossaUpdateProjects(ref, schedule):
+    projects = None
+    worker = None
+    if getattr(ref, "database_connected", False) and ref.database is not None:
+        try:
+            worker = core.FossaWorker(
+                core.LFRoles.DB_ACCESS,
+                ref.get_worker_network_base_path(),
+                ref.selected_who or "Settings",
+                ref.database,
+            )
+            project_records = worker.GetProjects()
+            projects = [
+                Project(
+                    record["name"],
+                    Status(record["status"]),
+                    record["directory_path"],
+                    scenes=record.get("scenes", []),
+                    characters=record.get("characters", []),
+                    pending_change=record.get("pending_change"),
+                )
+                for record in project_records
+            ]
+            projects.sort(key=lambda project: project.name.casefold())
+        except (KeyError, OSError, TypeError, ValueError) as error:
+            print(f"Failed to load projects from the database: {error}", file=sys.stderr)
+        finally:
+            if worker is not None:
+                worker.Destroy()
+
+    if projects is not None:
+        Populators.populate_project_listbox(ref, projects)
+        Populators.populate_command_project_optionbox(ref, projects)
+    if schedule:
+        ref.projects_timer = ref.main_window.after(
+            5_000, lambda: FossaUpdateProjects(ref, schedule=True)
+        )
+
+def FossaCheckProjectApprovals(ref, schedule):
+    results_found = False
+    pending_changes = []
+    worker = None
+    if (
+        getattr(ref, "selected_who", None)
+        and getattr(ref, "database_connected", False)
+        and ref.database is not None
+    ):
+        try:
+            worker = core.FossaWorker(
+                core.LFRoles.APPROVAL_NEEDED,
+                ref.get_worker_network_base_path(),
+                ref.selected_who,
+                ref.database,
+            )
+            for result in worker.GetProjectStructureChangeResults(ref.selected_who):
+                draft = ref.get_project_structure_draft(result["project_id"])
+                if draft is not None and draft.get("request_id") == result["request_id"]:
+                    ref.clear_project_structure_draft(result["project_id"])
+                worker.AcknowledgeProjectStructureChange(
+                    result["project_id"],
+                    result["request_id"],
+                    ref.selected_who,
+                )
+                results_found = True
+
+            pending_changes = worker.GetPendingProjectStructureChanges()
+        except (KeyError, OSError, RuntimeError, TypeError, ValueError) as error:
+            print(f"Failed to check project change approvals: {error}", file=sys.stderr)
+        finally:
+            if worker is not None:
+                worker.Destroy()
+
+    if results_found:
+        FossaUpdateProjects(ref, schedule=False)
+
+    if not getattr(ref, "_approval_dialog_open", False):
+        for change in pending_changes:
+            if change["requester"] != ref.selected_who:
+                ref._approval_dialog_open = True
+                CreatorsSettings.show_project_change_approval_dialog(
+                    ref,
+                    change,
+                    lambda approved, _change=change: FossaResolveProjectApproval(
+                        ref, _change, approved
+                    ),
+                )
+                break
+
+    if schedule:
+        ref.approval_poll_timer = ref.main_window.after(
+            60_000, lambda: FossaCheckProjectApprovals(ref, schedule=True)
+        )
+
+def FossaResolveProjectApproval(ref, change, approved):
+    worker = None
+    try:
+        worker = core.FossaWorker(
+            core.LFRoles.APPROVAL_NEEDED,
+            change["directory_path"],
+            ref.selected_who,
+            ref.database,
+        )
+        worker.ResolveProjectStructureChange(
+            change["project_id"],
+            change["request_id"],
+            ref.selected_who,
+            approved,
+        )
+    except (OSError, RuntimeError, ValueError) as error:
+        from tkinter import messagebox
+
+        messagebox.showerror(
+            "Could not resolve project change",
+            str(error),
+            parent=ref.main_window,
+        )
+        return False
+    finally:
+        if worker is not None:
+            worker.Destroy()
+
+    ref._approval_dialog_open = False
+    FossaUpdateProjects(ref, schedule=False)
+    ref.main_window.after_idle(
+        lambda: FossaCheckProjectApprovals(ref, schedule=False)
+    )
+    return True
 
 def FossaCloseApplication(ref):
     if getattr(ref, "_close_application_started", False):

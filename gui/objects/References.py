@@ -26,6 +26,7 @@ class References:
                 self.network_base_path_variable.get(),
             )
         )
+        self._set_selected_who(data)
         font_size_ticks = data.get("fontsize", 0)
         self._loading_persistence = True
         try:
@@ -40,6 +41,18 @@ class References:
                     self.decrease_font_size()
         finally:
             self._loading_persistence = False
+
+    def load_selected_who(self):
+        self._set_selected_who(self._read_preferences())
+
+    def _set_selected_who(self, data):
+        selected_who = data.get("who_am_i")
+        self.selected_who = (
+            selected_who
+            if isinstance(selected_who, str)
+            and selected_who in self.who.options
+            else None
+        )
 
     def _preferences_path(self):
         dirs = PlatformDirs("Fossa", "Joseph Hansen", ensure_exists=True)
@@ -69,6 +82,45 @@ class References:
         data = self._read_preferences()
         data["network_base_path"] = network_base_path
         self._write_preferences(data)
+
+    def save_selected_who(self, selected_who):
+        data = self._read_preferences()
+        data["who_am_i"] = selected_who
+        self._write_preferences(data)
+
+    def get_project_structure_draft(self, project_id):
+        drafts = self._read_preferences().get("project_structure_drafts", {})
+        if not isinstance(drafts, dict):
+            raise ValueError("Project structure drafts must be a JSON object")
+        draft = drafts.get(project_id)
+        return draft if isinstance(draft, dict) else None
+
+    def save_project_structure_draft(self, project_id, draft):
+        data = self._read_preferences()
+        drafts = data.setdefault("project_structure_drafts", {})
+        if not isinstance(drafts, dict):
+            raise ValueError("Project structure drafts must be a JSON object")
+        drafts[project_id] = draft
+        self._write_preferences(data)
+
+    def clear_project_structure_draft(self, project_id):
+        data = self._read_preferences()
+        drafts = data.get("project_structure_drafts", {})
+        if not isinstance(drafts, dict):
+            raise ValueError("Project structure drafts must be a JSON object")
+        if project_id in drafts:
+            del drafts[project_id]
+            self._write_preferences(data)
+
+    def get_worker_network_base_path(self, fallback=None):
+        project = getattr(self, "selected_project", None)
+        if project is not None:
+            return Path(project.directory_path)
+        return Path(
+            fallback
+            if fallback is not None
+            else self.network_base_path_variable.get()
+        )
 
     def save_font_size(self, ticks):
         if getattr(self, "_loading_persistence", False):
@@ -106,7 +158,7 @@ class References:
         window_height = ref.main_window.winfo_screenheight()
         screen_height = ref.main_window.winfo_screenheight()
         center_y = int(screen_height/2 - window_height / 4)
-        ref.main_window.geometry(f'{1300}x{550}+{200}+{center_y}')
+        ref.main_window.geometry(f'{1450}x{550}+{200}+{center_y}')
         ref.main_window.minsize(1200, 550)
         
         ref.save_font_size(1)
@@ -140,7 +192,7 @@ class References:
         window_height = ref.main_window.winfo_screenheight()
         screen_height = ref.main_window.winfo_screenheight()
         center_y = int(screen_height/2 - window_height / 4)
-        ref.main_window.geometry(f'{1300}x{550}+{200}+{center_y}')
+        ref.main_window.geometry(f'{1450}x{550}+{200}+{center_y}')
         ref.main_window.minsize(1200, 550)
         
         ref.save_font_size(-1)
@@ -148,7 +200,7 @@ class References:
     def setup_fonts(self):
         ref = self
         style = ttk.Style(ref.main_window)
-        ref.command_font = tkFont.Font(family="Helvetica", size=14, weight="bold")
+        ref.command_font = tkFont.Font(family="Helvetica", size=13, weight="bold")
         style.configure("CommandBar.TLabel", font=ref.command_font)
         ref.treeview_heading_font = tkFont.Font(family="Helvetica", size=13, weight="normal")
         style.configure("Treeview.Heading", font=ref.treeview_heading_font)

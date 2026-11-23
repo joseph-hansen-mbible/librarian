@@ -24,18 +24,16 @@ def main():
     who = Who.Who()
     ref = References()
     ref.who = who
-    Helpers.FossaMain(
-        ref,
-        on_ready=lambda: CheckOutBlenderFile(
-            "test.blend", "Joseph Hansen", "Noah", ref
-        ),
-    )
+    Helpers.FossaMain(ref)
 
 def CheckOutBlenderFile(filepath, artist, project, ref):
     if ref.database_connected:
+        worker_path = ref.get_worker_network_base_path(
+            os.path.join(ref.network_base_path_variable.get(), project)
+        )
         core.FossaWorker(
             core.LFRoles.CACHING,
-            os.path.join(ref.network_base_path_variable.get(), project),
+            worker_path,
             artist,
             ref.database,
         ).CheckOutBlenderFile(filepath)
@@ -44,7 +42,15 @@ def CheckInBlenderFile(artist, project, ref):
     # you can only checkout one at a time so the filepath doesn't matter
     # this wouldn't work for actual VC but really CICO here is just file locks anyway
     if ref.database_connected:
-        core.FossaWorker(core.LFRoles.CACHING, os.path.join(ref.network_base_path_variable.get(), project), artist, ref.database).CheckInBlenderFile()
+        worker_path = ref.get_worker_network_base_path(
+            os.path.join(ref.network_base_path_variable.get(), project)
+        )
+        core.FossaWorker(
+            core.LFRoles.CACHING,
+            worker_path,
+            artist,
+            ref.database,
+        ).CheckInBlenderFile()
     # this needs to connect to Blender and never be called directly, only through bpy,
     # to ensure that when a file is checked back in it CANNOT be edited without checking out again
 

@@ -44,6 +44,7 @@ class LFRoles(Enum):
     CONFLICT_RESOLUTION = "conflict_resolution"
     RECORDS = "records"
     BLENDER = "blender"
+    APPROVAL_NEEDED = "approval_needed"
 
 class LocalCacheData():
     def __init__(self, current_file="", recent_files=[], current_file_checklist={}, unlock_ssot_request=False, ssot_unlock_count=0):
@@ -73,13 +74,6 @@ class FossaWorker():
         self._database_retry_timer = None
         self._database_update_guard = Lock()
 
-        if not self.network_base_path.is_relative_to(self.fossa_db.network_base_path):
-            error = ValueError(
-                "The worker network path must be inside the FossaDB network path"
-            )
-            self._ReportFailure(f"worker initialization failed: {error}")
-            raise error
-
         self.local_cache_data = LocalCacheData("", [], {}, False, 0)
         try:
             self.AssignName()
@@ -102,6 +96,7 @@ class FossaWorker():
             LFRoles.CACHING: "caching worker",
             LFRoles.CONFLICT_RESOLUTION: "conflict resolution worker",
             LFRoles.RECORDS: "records worker",
+            LFRoles.APPROVAL_NEEDED: "project change approval worker",
         }
         description = worker_descriptions.get(role, "worker")
         self.LogToRecords(f"assigned name and started {description}")
@@ -605,6 +600,77 @@ class FossaWorker():
         if self._closed:
             return {}
         return self.fossa_db.GetDatabaseSnapshot()
+
+    def GetProjects(self):
+        if self._closed:
+            raise RuntimeError("Cannot read projects from a closed worker")
+        return self.fossa_db.GetProjects()
+
+    def SyncProject(self, project):
+        if self._closed:
+            raise RuntimeError("Cannot sync a project with a closed worker")
+        if self.role is not LFRoles.DB_ACCESS:
+            raise RuntimeError("Project sync requires a database access worker")
+        self.fossa_db.SaveProject(
+            project.id,
+            project.name,
+            project.status.value,
+            project.directory_path,
+        )
+
+    def SubmitProjectStructureChange(
+        self,
+        project_id,
+        requester,
+        request_id,
+        proposed_structure,
+        base_structure,
+    ):
+        self._RequireApprovalRole()
+        return self.fossa_db.SubmitProjectStructureChange(
+            project_id,
+            requester,
+            request_id,
+            proposed_structure,
+            base_structure,
+        )
+
+    def GetPendingProjectStructureChanges(self):
+        self._RequireApprovalRole()
+        return self.fossa_db.GetPendingProjectStructureChanges()
+
+    def GetProjectStructureChangeResults(self, requester):
+        self._RequireApprovalRole()
+        return self.fossa_db.GetProjectStructureChangeResults(requester)
+
+    def ResolveProjectStructureChange(
+        self, project_id, request_id, reviewer, approved
+    ):
+        self._RequireApprovalRole()
+        return self.fossa_db.ResolveProjectStructureChange(
+            project_id,
+            request_id,
+            reviewer,
+            approved,
+        )
+
+    def AcknowledgeProjectStructureChange(
+        self, project_id, request_id, requester
+    ):
+        self._RequireApprovalRole()
+        return self.fossa_db.AcknowledgeProjectStructureChange(
+            project_id,
+            request_id,
+            requester,
+        )
+
+    def _RequireApprovalRole(self):
+        if self._closed:
+            raise RuntimeError("Project change approval worker is closed")
+        if self.role is not LFRoles.APPROVAL_NEEDED:
+            raise RuntimeError(
+                "Project change operation requires an approval worker"
+            )
 
     def CheckOutBlenderFile(self, filepath):
         if self._closed:
