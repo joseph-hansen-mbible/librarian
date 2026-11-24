@@ -38,6 +38,7 @@ class ProjectStructureEditor:
             "characters": list(self.project.characters),
             "props": list(self.project.props),
             "status": self.project.status.value,
+            "project_code": self.project.project_code,
         }
 
     def _load_draft(self):
@@ -48,11 +49,13 @@ class ProjectStructureEditor:
                 FossaDB.NormalizeProjectStructure(
                     cached,
                     default_status=self.project.status.value,
+                    default_project_code=self.project.project_code,
                 )
             )
             cached["base_structure"] = FossaDB.NormalizeProjectStructure(
                 cached.get("base_structure", canonical),
                 default_status=self.project.status.value,
+                default_project_code=self.project.project_code,
             )
         if (
             cached is not None
@@ -86,6 +89,11 @@ class ProjectStructureEditor:
                 if cached is not None
                 else self.project.status.value
             ),
+            "project_code": (
+                cached.get("project_code", self.project.project_code)
+                if cached is not None
+                else self.project.project_code
+            ),
         }
         return True
 
@@ -116,6 +124,25 @@ class ProjectStructureEditor:
         self.status_menu.bind(
             "<<ComboboxSelected>>",
             self._update_status_draft,
+        )
+        ttk.Label(status_frame, text="Project Code").pack(
+            side="left",
+            padx=(16, 8),
+        )
+        self.project_code_var = tk.StringVar(value=self.draft["project_code"])
+        project_code_entry = ttk.Entry(
+            status_frame,
+            textvariable=self.project_code_var,
+            width=8,
+        )
+        project_code_entry.pack(side="left")
+        project_code_entry.bind(
+            "<FocusOut>",
+            self._update_project_code_draft,
+        )
+        project_code_entry.bind(
+            "<Return>",
+            self._update_project_code_draft,
         )
 
         columns = ttk.Frame(self.dialog)
@@ -204,6 +231,11 @@ class ProjectStructureEditor:
         footer.pack(fill="x", padx=8, pady=(0, 8))
         ttk.Button(
             footer,
+            text="Discard Draft",
+            command=self._discard_draft,
+        ).pack(side="left")
+        ttk.Button(
+            footer,
             text="Request Approval",
             command=self._submit_for_approval,
             style="Approve.TButton",
@@ -213,6 +245,21 @@ class ProjectStructureEditor:
             text="Close",
             command=self.dialog.destroy,
         ).pack(side="right", padx=(0, 5))
+
+    def _discard_draft(self):
+        try:
+            self.ref.clear_project_structure_draft(self.project.id)
+        except (OSError, ValueError) as error:
+            messagebox.showerror(
+                "Could not discard project draft",
+                str(error),
+                parent=self.dialog,
+            )
+            return
+        self.dialog.destroy()
+        from methods.CreatorsProjectDetails import CreatorsProjectDetails
+
+        CreatorsProjectDetails.show_project_details(self.ref)
 
     @staticmethod
     def _add_controls(parent, add_command, bulk_command, rename_command, remove_command):
@@ -249,6 +296,7 @@ class ProjectStructureEditor:
                     "characters": updated["characters"],
                     "props": updated["props"],
                     "status": updated["status"],
+                    "project_code": updated["project_code"],
                     "base_structure": self.base_structure,
                     "state": "draft",
                     "request_id": None,
@@ -417,6 +465,22 @@ class ProjectStructureEditor:
             self.selected_value(self.setting_listbox),
         )
 
+    def _update_project_code_draft(self, _event=None):
+        project_code = self.project_code_var.get()
+        if project_code == self.draft["project_code"]:
+            return
+        updated = deepcopy(self.draft)
+        updated["project_code"] = project_code
+        selected_scene = self.selected_scene()
+        self.persist_draft(
+            updated,
+            selected_scene["name"] if selected_scene is not None else None,
+            self.selected_value(self.shot_listbox),
+            self.selected_value(self.character_listbox),
+            self.selected_value(self.prop_listbox),
+            self.selected_value(self.setting_listbox),
+        )
+
     @staticmethod
     def request_approval(ref, project, proposed, base_structure, parent):
         if not ref.selected_who or not ref.database_connected or ref.database is None:
@@ -487,6 +551,21 @@ class ProjectStructureEditor:
         return True
 
     def _submit_for_approval(self):
+        project_code = self.project_code_var.get()
+        if project_code != self.draft["project_code"]:
+            updated = deepcopy(self.draft)
+            updated["project_code"] = project_code
+            selected_scene = self.selected_scene()
+            if not self.persist_draft(
+                updated,
+                selected_scene["name"] if selected_scene is not None else None,
+                self.selected_value(self.shot_listbox),
+                self.selected_value(self.character_listbox),
+                self.selected_value(self.prop_listbox),
+                self.selected_value(self.setting_listbox),
+            ):
+                return
+
         canonical = self._canonical_structure()
         if self.base_structure != canonical:
             messagebox.showerror(

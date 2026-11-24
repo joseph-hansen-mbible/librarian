@@ -18,6 +18,9 @@ class CreatorsProjectDetails:
         ref.command_project_var.set(project.name)
         ref.project_details_label.configure(text=project.name)
         ref.project_status_var.set(project.status.value)
+        ref.project_details_code.configure(
+            text=f"Project Code: {project.project_code or 'Not set'}"
+        )
         ref.project_details_directory_path.configure(text=project.directory_path)
         ref.project_status_menu.configure(state="readonly")
         for listbox in (
@@ -66,6 +69,7 @@ class CreatorsProjectDetails:
             "characters": project.characters,
             "props": project.props,
             "status": project.status.value,
+            "project_code": project.project_code,
         }
         try:
             draft = ref.get_project_structure_draft(project.id)
@@ -74,11 +78,13 @@ class CreatorsProjectDetails:
                     FossaDB.NormalizeProjectStructure(
                         draft,
                         default_status=project.status.value,
+                        default_project_code=project.project_code,
                     )
                 )
                 draft["base_structure"] = FossaDB.NormalizeProjectStructure(
                     draft.get("base_structure", canonical_structure),
                     default_status=project.status.value,
+                    default_project_code=project.project_code,
                 )
         except (OSError, ValueError) as error:
             messagebox.showerror(
@@ -93,6 +99,8 @@ class CreatorsProjectDetails:
             and draft.get("base_structure", canonical_structure)
             != canonical_structure
         )
+        ref.project_structure_button.pack_forget()
+        ref.project_structure_discard_button.pack_forget()
         if project.pending_change is not None:
             ref.project_status_menu.configure(state="disabled")
             requester = project.pending_change.get("requester", "another user")
@@ -126,22 +134,34 @@ class CreatorsProjectDetails:
                     )
                 )
             ref.project_structure_status_label.configure(text=status)
-            ref.project_structure_button.configure(state="disabled")
-            ref.project_structure_discard_button.configure(state="disabled")
+            if requester == ref.selected_who:
+                CreatorsProjectDetails._show_project_structure_action(
+                    ref,
+                    ref.project_structure_discard_button,
+                )
+            else:
+                CreatorsProjectDetails._show_project_structure_action(
+                    ref,
+                    ref.project_structure_button,
+                )
         elif draft is not None and draft.get("state") == "pending":
             ref.project_status_menu.configure(state="disabled")
             ref.project_structure_status_label.configure(
                 text="Your project changes are awaiting approval"
             )
-            ref.project_structure_button.configure(state="disabled")
-            ref.project_structure_discard_button.configure(state="disabled")
+            CreatorsProjectDetails._show_project_structure_action(
+                ref,
+                ref.project_structure_discard_button,
+            )
         elif stale_draft:
             ref.project_status_menu.configure(state="disabled")
             ref.project_structure_status_label.configure(
                 text="Draft is out of date; discard it before editing"
             )
-            ref.project_structure_button.configure(state="disabled")
-            ref.project_structure_discard_button.configure(state="normal")
+            CreatorsProjectDetails._show_project_structure_action(
+                ref,
+                ref.project_structure_discard_button,
+            )
         else:
             ref.project_status_menu.configure(
                 state="disabled" if draft is not None else "readonly"
@@ -153,16 +173,63 @@ class CreatorsProjectDetails:
                     else ""
                 )
             )
-            ref.project_structure_button.configure(state="normal")
-            ref.project_structure_discard_button.configure(
-                state="normal" if draft is not None else "disabled"
+            CreatorsProjectDetails._show_project_structure_action(
+                ref,
+                ref.project_structure_button,
             )
+
+    @staticmethod
+    def _show_project_structure_action(ref, button):
+        button.configure(state="normal")
+        button.pack(side="left", fill="x", expand=True)
 
     @staticmethod
     def discard_project_structure_draft(ref):
         project = getattr(ref, "selected_project", None)
         if project is None:
             return
+        pending_change = project.pending_change
+        if pending_change is not None:
+            requester = pending_change.get("requester")
+            if not ref.selected_who or requester != ref.selected_who:
+                messagebox.showerror(
+                    "Could not withdraw project changes",
+                    "Only the requester can withdraw a pending project change.",
+                    parent=ref.projects_tab,
+                )
+                return
+            if not ref.database_connected or ref.database is None:
+                messagebox.showerror(
+                    "Could not withdraw project changes",
+                    "A database connection is required to withdraw a pending project change.",
+                    parent=ref.projects_tab,
+                )
+                return
+            worker = None
+            try:
+                from workers import core
+
+                worker = core.FossaWorker(
+                    core.LFRoles.APPROVAL_NEEDED,
+                    project.directory_path,
+                    ref.selected_who,
+                    ref.database,
+                )
+                worker.WithdrawProjectStructureChange(
+                    project.id,
+                    pending_change["id"],
+                    ref.selected_who,
+                )
+            except (OSError, RuntimeError, TypeError, ValueError) as error:
+                messagebox.showerror(
+                    "Could not withdraw project changes",
+                    str(error),
+                    parent=ref.projects_tab,
+                )
+                return
+            finally:
+                if worker is not None:
+                    worker.Destroy()
         try:
             ref.clear_project_structure_draft(project.id)
         except (OSError, ValueError) as error:
@@ -171,11 +238,17 @@ class CreatorsProjectDetails:
                 str(error),
                 parent=ref.projects_tab,
             )
+            if pending_change is not None:
+                from methods.Helpers import FossaUpdateProjects
+
+                FossaUpdateProjects(ref, schedule=False)
             return
-        ref.project_structure_status_label.configure(text="")
-        ref.project_structure_button.configure(state="normal")
-        ref.project_structure_discard_button.configure(state="disabled")
-        ref.project_status_menu.configure(state="readonly")
+        if pending_change is not None:
+            from methods.Helpers import FossaUpdateProjects
+
+            FossaUpdateProjects(ref, schedule=False)
+        else:
+            CreatorsProjectDetails.show_project_details(ref)
 
     @staticmethod
     def request_project_status_change(ref):
@@ -207,6 +280,7 @@ class CreatorsProjectDetails:
         proposed = {
             **base_structure,
             "status": selected_status,
+            "project_code": project.project_code,
         }
         ref.project_status_var.set(current_status)
         ref.project_status_menu.configure(state="disabled")

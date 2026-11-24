@@ -1,5 +1,8 @@
+import hashlib
 import tkinter as tk
 from tkinter import ttk
+
+from methods.Filters import Filters
 
 class Populators:
     STATUS_SUCCESS_BACKGROUND = "#24482a"
@@ -65,11 +68,14 @@ class Populators:
             ref.selected_project = None
             ref.project_details_label.configure(text="Project Details")
             ref.project_status_var.set("Status")
+            ref.project_details_code.configure(text="")
             ref.project_details_directory_path.configure(text="")
             ref.project_status_menu.configure(state="disabled")
             ref.project_structure_status_label.configure(text="")
             ref.project_structure_button.configure(state="disabled")
             ref.project_structure_discard_button.configure(state="disabled")
+            ref.project_structure_button.pack_forget()
+            ref.project_structure_discard_button.pack_forget()
             for listbox in (
                 ref.project_character_listbox,
                 ref.project_scene_listbox,
@@ -342,23 +348,44 @@ class Populators:
             ref.current_files_table_next_row += 1
     
     @staticmethod
-    def populate_recent_files_treeview(ref):
-        ref.recent_files_treeview.insert(
-            "",
-            "end",
-            values=("File1.blend", "Joseph Hansen", "2023-10-01", "SSOT"),
-        )
-        ref.recent_files_treeview.insert(
-            "",
-            "end",
-            values=("File2.blend", "Joseph Hansen", "2023-10-01", "WIP"),
-        )
+    def populate_recent_files_treeview(ref, rows=None):
+        selection = ref.recent_files_treeview.selection()
+        for item in ref.recent_files_treeview.get_children(""):
+            ref.recent_files_treeview.delete(item)
+        ref.recent_file_paths = {}
+        ref.recent_file_checkout_owners = {}
+        ref.recent_file_metadata = {}
+        visible_items = set()
+        for row in rows or []:
+            filepath = row["filepath"]
+            values = row["values"]
+            item_id = hashlib.sha256(
+                f"{values[1]}\0{filepath}".encode("utf-8")
+            ).hexdigest()
+            ref.recent_files_treeview.insert(
+                "",
+                "end",
+                iid=item_id,
+                values=values,
+            )
+            visible_items.add(item_id)
+            ref.recent_file_paths[item_id] = filepath
+            ref.recent_file_checkout_owners[item_id] = row["checked_out_by"]
+            ref.recent_file_metadata[item_id] = row["metadata"]
+        if selection and selection[0] in visible_items:
+            ref.recent_files_treeview.selection_set(selection[0])
+            ref.recent_files_treeview.focus(selection[0])
     
     @staticmethod
-    def populate_locks_treeview(ref):
-        # ("Project", "Level", "Shot", "Version", "Type", "Status", "Checklist", "UA")
-        item = ref.locks_treeview.insert("", "end", values=("Noah", "1", "1", "1", "CharAnimGraybox", "WIP", "0/5", "0"))
-        ref.all_files_item_ids.append(item)
+    def populate_locks_treeview(ref, rows=None):
+        for item in ref.locks_treeview.get_children(""):
+            ref.locks_treeview.delete(item)
+        ref.all_files_item_ids = []
+        ref.all_files_detached_item_ids.clear()
+        for row in rows or []:
+            item = ref.locks_treeview.insert("", "end", values=row)
+            ref.all_files_item_ids.append(item)
+        Filters.filter_all_files_treeview(ref)
 
     @staticmethod
     def update_status_bar(ref):

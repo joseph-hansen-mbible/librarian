@@ -8,8 +8,8 @@ class CreatorsSettings:
     def create_settings_window(ref):
         settings_window = tk.Toplevel(ref.main_window)
         settings_window.title("Settings")
-        settings_window.geometry("700x700")
-        settings_window.minsize(500, 400)
+        settings_window.geometry("800x300")
+        settings_window.minsize(400, 200)
         if ref.selected_who is not None:
             settings_window.transient(ref.main_window)
         settings_window.withdraw()
@@ -97,7 +97,7 @@ class CreatorsSettings:
 
     @staticmethod
     def create_settings_other_frame(ref):
-        other_frame = ttk.LabelFrame(ref.settings_tab, text="Other Settings")
+        other_frame = ttk.LabelFrame(ref.settings_tab, text="Settings")
         other_frame.pack(fill="x", expand=False, padx=10, pady=10, side="top")
 
         other_row = ttk.Frame(other_frame)

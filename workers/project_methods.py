@@ -22,6 +22,7 @@ class ProjectWorkerMethods:
             project.name,
             project.status.value,
             project.directory_path,
+            project.project_code,
         )
 
     def SubmitProjectStructureChange(
@@ -58,6 +59,14 @@ class ProjectWorkerMethods:
             request_id,
             reviewer,
             approved,
+        )
+
+    def WithdrawProjectStructureChange(self, project_id, request_id, requester):
+        self._RequireApprovalRole()
+        return self.fossa_db.WithdrawProjectStructureChange(
+            project_id,
+            request_id,
+            requester,
         )
 
     def AcknowledgeProjectStructureChange(

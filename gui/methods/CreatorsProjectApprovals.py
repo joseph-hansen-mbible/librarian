@@ -59,7 +59,6 @@ class CreatorsProjectApprovals:
             text="Reject",
             command=lambda: decide(False),
             style="Reject.TButton",
-            font=ref.scaled_system_fonts[0],
             padding=(14, 6),
         ).pack(side="right", padx=(5, 0))
         ttk.Button(
@@ -67,7 +66,6 @@ class CreatorsProjectApprovals:
             text="Approve",
             command=lambda: decide(True),
             style="Approve.TButton",
-            font=ref.scaled_system_fonts[0],
             padding=(14, 6),
         ).pack(side="right")
         dialog.protocol("WM_DELETE_WINDOW", close_without_decision)
@@ -78,6 +76,11 @@ class CreatorsProjectApprovals:
         proposed = change["proposed"]
         lines = []
 
+        if current.get("project_code", "") != proposed.get("project_code", ""):
+            lines.append(
+                f"~ Project code: {current.get('project_code', '') or 'Not set'} -> "
+                f"{proposed.get('project_code', '') or 'Not set'}"
+            )
         if current.get("status") != proposed.get("status"):
             lines.append(
                 f"~ Project status: {current.get('status', 'Not Started')} -> "

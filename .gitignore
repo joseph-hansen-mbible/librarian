@@ -4,3 +4,4 @@ whoami/.whoami
 *.whoami
 *whoami/*.whoami
 whoami/.whoami
+/tests

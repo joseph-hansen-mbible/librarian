@@ -1,3 +1,4 @@
+import datetime
 import json
 import os
 from pathlib import Path
@@ -156,6 +157,106 @@ class FossaDB(ProjectMethods):
                     pass
             raise
 
+    def MarkBlenderFileCreationPending(self, artist, filepath):
+        artist = str(artist)
+        if not artist:
+            raise ValueError("Artist must not be empty")
+        if not str(filepath):
+            raise ValueError("Filepath must not be empty")
+        requested_path = str(Path(filepath).expanduser().resolve())
+
+        with self.lock_file_path.open(mode="a+", encoding="utf-8") as lock_file:
+            file_lock.flock(lock_file.fileno(), file_lock.LOCK_EX)
+            try:
+                database = self._ReadDatabase()
+                artist_data = database.get(artist, {})
+                if not isinstance(artist_data, dict):
+                    raise ValueError(
+                        f"Cache data for {artist!r} must be a JSON object"
+                    )
+
+                current_file = artist_data.get("current_file")
+                if isinstance(current_file, str) and current_file:
+                    raise RuntimeError(
+                        f"{artist!r} already has a checked-out Blender file"
+                    )
+                if current_file not in (None, ""):
+                    raise ValueError(
+                        f"Current file for {artist!r} must be a string"
+                    )
+
+                pending_file = artist_data.get("pending_create_file")
+                if pending_file not in (None, "", requested_path):
+                    raise RuntimeError(
+                        f"{artist!r} already has a pending Blender file creation"
+                    )
+                artist_data["pending_create_file"] = requested_path
+                database[artist] = artist_data
+                self._WriteDatabase(database)
+                return requested_path
+            finally:
+                file_lock.flock(lock_file.fileno(), file_lock.LOCK_UN)
+
+    def ClearBlenderFileCreationPending(self, artist, filepath):
+        artist = str(artist)
+        requested_path = str(Path(filepath).expanduser().resolve())
+
+        with self.lock_file_path.open(mode="a+", encoding="utf-8") as lock_file:
+            file_lock.flock(lock_file.fileno(), file_lock.LOCK_EX)
+            try:
+                database = self._ReadDatabase()
+                artist_data = database.get(artist)
+                if not isinstance(artist_data, dict):
+                    return False
+                if artist_data.get("pending_create_file") != requested_path:
+                    return False
+                del artist_data["pending_create_file"]
+                self._WriteDatabase(database)
+                return True
+            finally:
+                file_lock.flock(lock_file.fileno(), file_lock.LOCK_UN)
+
+    def RecordBlenderFileUse(self, artist, filepath, metadata):
+        artist = str(artist)
+        if not artist:
+            raise ValueError("Artist must not be empty")
+        if not str(filepath):
+            raise ValueError("Filepath must not be empty")
+        if not isinstance(metadata, dict):
+            raise ValueError("Blender file metadata must be a JSON object")
+        requested_path = str(Path(filepath).expanduser().resolve())
+        opened_at = datetime.datetime.now(datetime.timezone.utc).isoformat(
+            timespec="seconds"
+        )
+
+        with self.lock_file_path.open(mode="a+", encoding="utf-8") as lock_file:
+            file_lock.flock(lock_file.fileno(), file_lock.LOCK_EX)
+            try:
+                database = self._ReadDatabase()
+                files = database.setdefault("__blender_files__", {})
+                if not isinstance(files, dict):
+                    raise ValueError("Blender file index must be a JSON object")
+                file_record = files.get(requested_path, {})
+                if not isinstance(file_record, dict):
+                    raise ValueError(
+                        f"Blender file metadata for {requested_path!r} "
+                        "must be a JSON object"
+                    )
+
+                opened_by = file_record.get("last_opened_by_artist", {})
+                if not isinstance(opened_by, dict):
+                    raise ValueError(
+                        f"Open history for {requested_path!r} must be a JSON object"
+                    )
+                file_record.update(metadata)
+                opened_by[artist] = opened_at
+                file_record["last_opened_by_artist"] = opened_by
+                files[requested_path] = file_record
+                self._WriteDatabase(database)
+                return opened_at
+            finally:
+                file_lock.flock(lock_file.fileno(), file_lock.LOCK_UN)
+
     def _TryReserveBlenderFile(self, artist, filepath):
         artist = str(artist)
         if not artist:
@@ -250,6 +351,10 @@ class FossaDB(ProjectMethods):
                         recent_files.remove(filepath)
                     recent_files.append(filepath)
                 cache_data["recent_files"] = recent_files
+                if "pending_create_file" in artist_data:
+                    cache_data["pending_create_file"] = artist_data[
+                        "pending_create_file"
+                    ]
                 database[artist] = cache_data
                 self._WriteDatabase(database)
                 network_cache_path.unlink()

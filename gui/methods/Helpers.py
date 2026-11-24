@@ -1,6 +1,8 @@
+import datetime
 import os
+import subprocess
 import tkinter as tk
-from tkinter import Menu, ttk
+from tkinter import Menu, messagebox, ttk
 from pathlib import Path
 import sys
 import threading
@@ -12,6 +14,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from gui.methods import Helpers
 from objects.Project import Project, Status
+from objects.BlenderFile import BlenderFile
 from whoami import Who
 from methods.Populators import Populators
 from methods.Creators import CreatorsMaintab as Creators
@@ -79,6 +82,9 @@ def FossaMain(ref, on_ready=None):
     ref.main_content_left_frame = Creators.create_main_content_left_frame(ref.file_lists_frame)
     ref.command_bar_frame = Creators.create_command_entry_frame(ref.main_content_left_frame)
     Creators.fill_command_entry_frame(ref)
+    ref.command_execute_button.configure(
+        command=lambda: FossaExecuteCommand(ref)
+    )
     ref.current_files_frame = Creators.create_current_files_frame(ref.main_content_left_frame)
     Creators.create_current_files_header(ref)
     
@@ -88,6 +94,14 @@ def FossaMain(ref, on_ready=None):
     Creators.create_recent_files_treeview(ref)
     Creators.create_recent_files_note_frame(ref)
     Creators.create_recent_files_open_button(ref)
+    ref.open_recent_file_button.configure(
+        command=lambda: FossaOpenSelectedRecentFile(ref),
+        state="disabled",
+    )
+    ref.recent_files_treeview.bind(
+        "<<TreeviewSelect>>",
+        lambda _event: FossaUpdateRecentFileOpenButton(ref),
+    )
 
     ref.locks_frame = Creators.create_locks_frame(ref.all_files_tab)
     ref.locks_details_frame = Creators.create_locks_details_frame(ref.all_files_tab)
@@ -193,6 +207,7 @@ def FossaStatusBar(ref, schedule):
 def FossaUpdateMainFileLists(ref, schedule):
     rows = []
     artist = getattr(ref, "selected_who", None)
+    database_snapshot = {}
 
     if (
         artist
@@ -207,8 +222,8 @@ def FossaUpdateMainFileLists(ref, schedule):
                 artist,
                 ref.database,
             )
-            database = database_checker.GetDatabaseSnapshot()
-            for checkout_artist, cache_data in database.items():
+            database_snapshot = database_checker.GetDatabaseSnapshot()
+            for checkout_artist, cache_data in database_snapshot.items():
                 if not isinstance(cache_data, dict):
                     continue
                 current_file = cache_data.get("current_file")
@@ -223,15 +238,190 @@ def FossaUpdateMainFileLists(ref, schedule):
             rows.sort(key=lambda row: (row[1].lower(), row[0].lower()))
         except (OSError, ValueError):
             rows = []
+            database_snapshot = {}
         finally:
             if database_checker is not None:
                 database_checker.Destroy()
 
+    all_files_rows, recent_files_rows = _BuildBlenderFileListRows(
+        ref,
+        database_snapshot,
+    )
     Populators.populate_current_files_table(ref, rows)
+    Populators.populate_locks_treeview(ref, all_files_rows)
+    Populators.populate_recent_files_treeview(ref, recent_files_rows)
+    FossaUpdateRecentFileOpenButton(ref)
     if schedule and not getattr(ref, "_close_application_started", False):
         ref.main_file_lists_timer = ref.main_window.after(
             2_000, lambda: FossaUpdateMainFileLists(ref, schedule=True)
         )
+
+def _BuildBlenderFileListRows(ref, database):
+    file_index = database.get("__blender_files__", {})
+    if not isinstance(file_index, dict):
+        file_index = {}
+
+    file_records = {}
+    recent_entries = {}
+    checkout_owners = {}
+    for filepath, metadata in file_index.items():
+        if not isinstance(filepath, str) or not filepath:
+            continue
+        normalized_path = _NormalizeFilePath(filepath)
+        file_records[normalized_path] = metadata if isinstance(metadata, dict) else {}
+        opened_by = (
+            metadata.get("last_opened_by_artist", {})
+            if isinstance(metadata, dict)
+            else {}
+        )
+        if isinstance(opened_by, dict):
+            for artist, opened_at in opened_by.items():
+                if isinstance(artist, str) and artist:
+                    recent_entries[(normalized_path, artist)] = opened_at
+
+    for artist, artist_data in database.items():
+        if artist in {"__projects__", "__blender_files__"}:
+            continue
+        if not isinstance(artist_data, dict):
+            continue
+        recent_files = artist_data.get("recent_files", [])
+        if isinstance(recent_files, list):
+            for filepath in recent_files:
+                if isinstance(filepath, str) and filepath:
+                    normalized_path = _NormalizeFilePath(filepath)
+                    recent_entries.setdefault(
+                        (normalized_path, str(artist)),
+                        _LastOpenedByArtist(
+                            file_records.get(normalized_path, {}),
+                            str(artist),
+                        ),
+                    )
+
+        current_file = artist_data.get("current_file")
+        if isinstance(current_file, str) and current_file:
+            normalized_path = _NormalizeFilePath(current_file)
+            checkout_owners.setdefault(normalized_path, str(artist))
+            recent_entries.setdefault(
+                (normalized_path, str(artist)),
+                _LastOpenedByArtist(
+                    file_records.get(normalized_path, {}),
+                    str(artist),
+                ),
+            )
+
+    all_paths = set(file_records)
+    all_paths.update(filepath for filepath, _artist in recent_entries)
+    all_files_rows = []
+    for filepath in sorted(all_paths, key=str.casefold):
+        metadata = file_records.get(filepath, {})
+        project_name = metadata.get("project_name", "")
+        if not isinstance(project_name, str):
+            project_name = ""
+        if not project_name:
+            project_name = _ProjectNameForPath(ref, filepath)
+
+        scene = metadata.get("scene", "")
+        if not isinstance(scene, str):
+            scene = ""
+        if not scene and Path(filepath).parent.name.startswith("Scene "):
+            scene = Path(filepath).parent.name.removeprefix("Scene ")
+
+        checklist = metadata.get("checklist", {})
+        if not isinstance(checklist, dict):
+            checklist = {}
+        checklist_count = sum(value is True for value in checklist.values())
+        version = metadata.get("version", "")
+        if isinstance(version, int):
+            version = f"{version:02d}"
+
+        all_files_rows.append(
+            (
+                project_name,
+                scene,
+                _StringValue(metadata.get("shot")),
+                _StringValue(version),
+                _StringValue(metadata.get("action")),
+                _StringValue(metadata.get("status")),
+                f"{checklist_count}/{len(checklist)}",
+                _StringValue(metadata.get("unlock_approvals", 0)),
+            )
+        )
+    all_files_rows.sort(
+        key=lambda row: tuple(str(value).casefold() for value in row)
+    )
+
+    recent_files_rows = []
+    for (filepath, artist), opened_at in recent_entries.items():
+        metadata = file_records.get(filepath, {})
+        recent_files_rows.append(
+            {
+                "values": (
+                    Path(filepath).name,
+                    artist,
+                    _FormatRecentFileDate(opened_at),
+                    _StringValue(metadata.get("status")),
+                ),
+                "filepath": filepath,
+                "checked_out_by": checkout_owners.get(filepath),
+                "metadata": metadata,
+                "opened_at": opened_at if isinstance(opened_at, str) else "",
+            }
+        )
+    recent_files_rows.sort(
+        key=lambda row: (
+            bool(row["opened_at"]),
+            row["opened_at"],
+            row["values"][1].casefold(),
+            row["values"][0].casefold(),
+        ),
+        reverse=True,
+    )
+    return all_files_rows, recent_files_rows
+
+def _ProjectNameForPath(ref, filepath):
+    project = _ProjectForPath(ref, filepath)
+    return project.name if project is not None else ""
+
+def _ProjectForPath(ref, filepath):
+    path = Path(_NormalizeFilePath(filepath))
+    matching_projects = []
+    for project in getattr(ref, "projects", []):
+        try:
+            project_path = Path(project.directory_path).expanduser().resolve()
+            if path.is_relative_to(project_path):
+                matching_projects.append((len(str(project_path)), project))
+        except (OSError, RuntimeError, TypeError, ValueError):
+            continue
+    return max(matching_projects, default=(0, None), key=lambda match: match[0])[1]
+
+def _NormalizeFilePath(filepath):
+    try:
+        return str(Path(filepath).expanduser().resolve())
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return str(filepath)
+
+def _LastOpenedByArtist(metadata, artist):
+    opened_by = metadata.get("last_opened_by_artist", {})
+    if not isinstance(opened_by, dict):
+        return ""
+    opened_at = opened_by.get(artist, "")
+    return opened_at if isinstance(opened_at, str) else ""
+
+def _StringValue(value):
+    if isinstance(value, str):
+        return value
+    return "" if value is None else str(value)
+
+def _FormatRecentFileDate(opened_at):
+    if not isinstance(opened_at, str) or not opened_at:
+        return ""
+    try:
+        timestamp = datetime.datetime.fromisoformat(opened_at)
+    except ValueError:
+        return ""
+    if timestamp.tzinfo is not None:
+        timestamp = timestamp.astimezone()
+    return timestamp.strftime("%Y-%m-%d %H:%M")
 
 def FossaUpdateProjects(ref, schedule):
     projects = None
@@ -254,6 +444,7 @@ def FossaUpdateProjects(ref, schedule):
                     characters=record.get("characters", []),
                     props=record.get("props", []),
                     pending_change=record.get("pending_change"),
+                    project_code=record.get("project_code", ""),
                 )
                 for record in project_records
             ]
@@ -331,6 +522,346 @@ def FossaCheckProjectApprovals(ref, schedule):
         ref.approval_poll_timer = ref.main_window.after(
             20_000, lambda: FossaCheckProjectApprovals(ref, schedule=True)
         )
+
+def FossaExecuteCommand(ref):
+    try:
+        action = ref.command_action_var.get()
+        project_name = ref.command_project_var.get()
+        if action == "Action" or project_name == "Project":
+            raise ValueError("Choose an action and project before continuing.")
+
+        project = next(
+            (
+                project
+                for project in getattr(ref, "projects", [])
+                if project.name == project_name
+            ),
+            None,
+        )
+        if project is None:
+            raise ValueError("The selected project is no longer available.")
+
+        if action not in Populators.ACTIONS:
+            raise ValueError(f"Unknown Blender action {action!r}.")
+
+        needs_scene = (
+            action
+            in Populators.SCENE_ONLY_ACTIONS
+            | Populators.SHOT_ACTIONS
+            | Populators.PROP_ACTIONS
+        )
+        selected_level = (
+            Populators.selected_command_level(ref) if needs_scene else None
+        )
+        scene = selected_level["name"] if selected_level is not None else None
+        shot = ref.command_shot_var.get()
+        character = ref.command_character_var.get()
+        prop = ref.command_prop_var.get()
+        setting = ref.command_setting_var.get()
+
+        if action in Populators.CHARACTER_ACTIONS and character == "Character":
+            raise ValueError("Choose a character before continuing.")
+        if action in Populators.PROP_ACTIONS and prop == "Prop":
+            raise ValueError("Choose a prop before continuing.")
+        if needs_scene and scene is None:
+            raise ValueError("Choose a scene before continuing.")
+        if action in Populators.SCENE_ONLY_ACTIONS | Populators.PROP_ACTIONS:
+            if setting == "Setting":
+                raise ValueError("Choose a setting before continuing.")
+        if action in Populators.SHOT_ACTIONS and shot == "Shot":
+            raise ValueError("Choose a shot before continuing.")
+
+        file_to_open = BlenderFile(
+            project,
+            action,
+            scene=scene,
+            shot=shot if action in Populators.SHOT_ACTIONS else None,
+            character=(
+                character if action in Populators.CHARACTER_ACTIONS else None
+            ),
+            setting=(
+                setting
+                if action in Populators.SCENE_ONLY_ACTIONS | Populators.PROP_ACTIONS
+                else None
+            ),
+            prop=prop if action in Populators.PROP_ACTIONS else None,
+        )
+        file_metadata = _BlenderFileMetadata(file_to_open, project)
+        filepath = file_to_open.get_path(
+            project.directory_path,
+            project.project_code,
+        )
+
+        if not getattr(ref, "blender_ready", False):
+            raise RuntimeError("The Blender executable is not configured.")
+        if not getattr(ref, "database_connected", False) or ref.database is None:
+            raise RuntimeError("The database is not connected.")
+
+        artist = getattr(ref, "selected_who", None)
+        if not artist:
+            raise RuntimeError("Choose an artist before opening a Blender file.")
+
+        if filepath.exists():
+            return _CheckoutAndOpenBlenderFile(
+                ref,
+                artist,
+                filepath,
+                project.directory_path,
+                file_metadata,
+            )
+
+        if getattr(ref, "_pending_blender_creation", None) is not None:
+            raise RuntimeError(
+                "A Blender file creation is already pending."
+            )
+
+        filepath.parent.mkdir(parents=True, exist_ok=True)
+        ref.database.MarkBlenderFileCreationPending(artist, filepath)
+        try:
+            _LaunchBlender(ref)
+        except (OSError, RuntimeError):
+            ref.database.ClearBlenderFileCreationPending(artist, filepath)
+            raise
+
+        ref._pending_blender_creation = {
+            "artist": artist,
+            "database": ref.database,
+            "filepath": filepath,
+            "metadata": file_metadata,
+            "project": project,
+        }
+        pending = ref._pending_blender_creation
+        ref.command_execute_button.configure(state="disabled")
+        worker = None
+        try:
+            worker = core.FossaWorker(
+                core.LFRoles.CACHING,
+                project.directory_path,
+                artist,
+                ref.database,
+            )
+            scheduled = worker.ScheduleBlenderFileCheckout(
+                filepath,
+                lambda checked_out, error: _SchedulePendingBlenderFileCheckoutResult(
+                    ref,
+                    pending,
+                    checked_out,
+                    error,
+                ),
+            )
+            if not scheduled:
+                raise RuntimeError("Could not schedule the Blender file checkout.")
+        except (OSError, RuntimeError, TypeError, ValueError):
+            ref.database.ClearBlenderFileCreationPending(artist, filepath)
+            ref._pending_blender_creation = None
+            ref.command_execute_button.configure(state="normal")
+            if worker is not None and not worker._closed:
+                worker.Destroy()
+            raise
+        return True
+    except (OSError, RuntimeError, TypeError, ValueError) as error:
+        messagebox.showerror(
+            "Could not open Blender file",
+            str(error),
+            parent=ref.main_window,
+        )
+        return False
+
+def _LaunchBlender(ref):
+    executable = Path(ref.blender_file_path_variable.get()).expanduser()
+    if not executable.exists():
+        raise RuntimeError("The configured Blender executable does not exist.")
+    if sys.platform == "darwin" and executable.suffix.lower() == ".app":
+        subprocess.Popen(["open", "-a", str(executable)])
+    else:
+        subprocess.Popen([str(executable)])
+
+def FossaUpdateRecentFileOpenButton(ref):
+    selection = ref.recent_files_treeview.selection()
+    if not selection:
+        ref.open_recent_file_button.configure(state="disabled")
+        return
+
+    item_id = selection[0]
+    filepath = getattr(ref, "recent_file_paths", {}).get(item_id)
+    checked_out_by = getattr(
+        ref, "recent_file_checkout_owners", {}
+    ).get(item_id)
+    is_available = (
+        filepath is not None
+        and Path(filepath).is_file()
+        and checked_out_by is None
+        and getattr(ref, "database_connected", False)
+        and getattr(ref, "blender_ready", False)
+        and bool(getattr(ref, "selected_who", None))
+    )
+    ref.open_recent_file_button.configure(
+        state="normal" if is_available else "disabled"
+    )
+
+def FossaOpenSelectedRecentFile(ref):
+    selection = ref.recent_files_treeview.selection()
+    if not selection:
+        return False
+
+    item_id = selection[0]
+    filepath = getattr(ref, "recent_file_paths", {}).get(item_id)
+    if filepath is None:
+        return False
+    filepath = Path(filepath)
+
+    try:
+        if not ref.database_connected or ref.database is None:
+            raise RuntimeError("The database is not connected.")
+        if not getattr(ref, "blender_ready", False):
+            raise RuntimeError("The Blender executable is not configured.")
+        if not filepath.is_file():
+            raise FileNotFoundError(f"Recent Blender file is unavailable: {filepath}")
+        artist = getattr(ref, "selected_who", None)
+        if not artist:
+            raise RuntimeError("Choose an artist before opening a Blender file.")
+
+        metadata = getattr(ref, "recent_file_metadata", {}).get(item_id, {})
+        project = _ProjectForPath(ref, filepath)
+        worker_path = (
+            project.directory_path
+            if project is not None
+            else ref.get_worker_network_base_path()
+        )
+        return _CheckoutAndOpenBlenderFile(
+            ref,
+            artist,
+            filepath,
+            worker_path,
+            metadata,
+        )
+    except (OSError, RuntimeError, TypeError, ValueError) as error:
+        messagebox.showerror(
+            "Could not open recent Blender file",
+            str(error),
+            parent=ref.main_window,
+        )
+        FossaUpdateMainFileLists(ref, schedule=False)
+        return False
+
+def _CheckoutAndOpenBlenderFile(
+    ref,
+    artist,
+    filepath,
+    worker_path,
+    metadata,
+):
+    worker = None
+    try:
+        worker = core.FossaWorker(
+            core.LFRoles.CACHING,
+            worker_path,
+            artist,
+            ref.database,
+        )
+        if not worker.CanCheckOutBlenderFile(filepath):
+            raise RuntimeError(
+                "This Blender file is already checked out, or the "
+                "database is unavailable."
+            )
+        if not worker.CheckOutBlenderFile(filepath):
+            raise RuntimeError("The Blender file could not be checked out.")
+    finally:
+        if worker is not None and not worker._closed:
+            worker.Destroy()
+
+    metadata_error = None
+    try:
+        ref.database.RecordBlenderFileUse(
+            artist,
+            filepath,
+            metadata,
+        )
+    except (OSError, RuntimeError, TypeError, ValueError) as error:
+        metadata_error = error
+    FossaUpdateMainFileLists(ref, schedule=False)
+    _LaunchBlender(ref)
+    if metadata_error is not None:
+        messagebox.showerror(
+            "Could not update file lists",
+            str(metadata_error),
+            parent=ref.main_window,
+        )
+    return True
+
+def _SchedulePendingBlenderFileCheckoutResult(
+    ref,
+    pending,
+    checked_out,
+    error,
+):
+    if getattr(ref, "_close_application_started", False):
+        return
+    try:
+        ref.main_window.after(
+            0,
+            lambda: _FinishPendingBlenderFileCheckout(
+                ref,
+                pending,
+                checked_out,
+                error,
+            ),
+        )
+    except (RuntimeError, tk.TclError) as callback_error:
+        print(
+            f"Could not report pending Blender file checkout: {callback_error}",
+            file=sys.stderr,
+        )
+
+def _FinishPendingBlenderFileCheckout(ref, pending, checked_out, error):
+    if checked_out:
+        try:
+            pending["database"].RecordBlenderFileUse(
+                pending["artist"],
+                pending["filepath"],
+                pending["metadata"],
+            )
+        except (OSError, RuntimeError, TypeError, ValueError) as metadata_error:
+            if error is None:
+                error = metadata_error
+            else:
+                print(
+                    f"Failed to record Blender file metadata: {metadata_error}",
+                    file=sys.stderr,
+                )
+
+    ref._pending_blender_creation = None
+    ref.command_execute_button.configure(state="normal")
+    FossaUpdateMainFileLists(ref, schedule=False)
+    if not checked_out and error is None:
+        error = RuntimeError(
+            "The new Blender file could not be checked out; it may already "
+            "be in use or the database may be unavailable."
+        )
+    if error is not None:
+        messagebox.showerror(
+            "Could not check out Blender file",
+            str(error),
+            parent=ref.main_window,
+        )
+
+def _BlenderFileMetadata(blender_file, project):
+    return {
+        "project_name": project.name,
+        "project_directory": str(
+            Path(project.directory_path).expanduser().resolve()
+        ),
+        "scene": blender_file.scene or "",
+        "shot": blender_file.shot or "",
+        "character": blender_file.character or "",
+        "prop": blender_file.prop or "",
+        "setting": blender_file.setting or "",
+        "version": blender_file.version,
+        "action": blender_file.action,
+        "status": blender_file.status.value,
+        "checklist": dict(blender_file.checklist),
+        "unlock_approvals": blender_file.unlock_approvals,
+    }
 
 def FossaResolveProjectApproval(ref, change, approved):
     if getattr(ref, "_close_application_started", False):

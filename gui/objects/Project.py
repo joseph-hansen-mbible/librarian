@@ -20,11 +20,13 @@ class Project:
         characters=None,
         props=None,
         pending_change=None,
+        project_code="",
     ):
         self._name = name
         self._status = status if isinstance(status, Status) else Status.NOT_STARTED
         self._id = name.lower().replace(" ", "_")
         self._directory_path = directory_path
+        self._project_code = project_code
         self._scenes = deepcopy(scenes) if scenes is not None else []
         self._characters = list(characters) if characters is not None else []
         self._props = list(props) if props is not None else []
@@ -62,6 +64,10 @@ class Project:
     @property
     def directory_path(self):
         return self._directory_path
+
+    @property
+    def project_code(self):
+        return self._project_code
 
     @property
     def scenes(self):

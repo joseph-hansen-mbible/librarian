@@ -14,7 +14,18 @@ class ProjectStructure:
     )
     SCENE_NUMBER_PATTERN = re.compile(r"(?:0[1-9]|[1-9][0-9])")
     SHOT_NAME_PATTERN = re.compile(r"(?:0[1-9]|[1-9][0-9])[A-Z]?")
+    PROJECT_CODE_PATTERN = re.compile(r"[A-Za-z]{2,5}")
     REQUIRED_APPROVALS = 2
+
+    @classmethod
+    def ValidateProjectCode(cls, project_code, allow_empty=True):
+        if not isinstance(project_code, str):
+            raise ValueError("Project code must be text")
+        if project_code == "" and allow_empty:
+            return project_code
+        if cls.PROJECT_CODE_PATTERN.fullmatch(project_code) is None:
+            raise ValueError("Project code must be 2-5 letters with no spaces")
+        return project_code
 
     @classmethod
     def Validate(cls, structure):
@@ -24,6 +35,9 @@ class ProjectStructure:
         characters = structure.get("characters")
         props = structure.get("props", [])
         status = structure.get("status", "Not Started")
+        project_code = cls.ValidateProjectCode(
+            structure.get("project_code", ""),
+        )
         if (
             not isinstance(scenes, list)
             or not isinstance(characters, list)
@@ -89,6 +103,7 @@ class ProjectStructure:
             "characters": normalized_characters,
             "props": normalized_props,
             "status": status,
+            "project_code": project_code,
         }
 
     @staticmethod
@@ -107,7 +122,12 @@ class ProjectStructure:
         return normalized
 
     @classmethod
-    def Normalize(cls, structure, default_status="Not Started"):
+    def Normalize(
+        cls,
+        structure,
+        default_status="Not Started",
+        default_project_code="",
+    ):
         if not isinstance(structure, dict):
             raise ValueError("Project structure must be a JSON object")
         scenes = structure.get("scenes", [])
@@ -161,6 +181,10 @@ class ProjectStructure:
                 "characters": structure.get("characters", []),
                 "props": structure.get("props", []),
                 "status": structure.get("status", default_status),
+                "project_code": structure.get(
+                    "project_code",
+                    default_project_code,
+                ),
             }
         )
 

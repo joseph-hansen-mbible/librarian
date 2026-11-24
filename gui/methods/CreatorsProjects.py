@@ -66,6 +66,7 @@ class CreatorsProjects:
             project_status_frame,
             text="Selecting a status requests two approvals.",
         ).pack(side="left", padx=8)
+        project_details_code = ttk.Label(project_details_frame, anchor="w")
         project_details_directory_path = ttk.Label(
             project_details_frame,
             wraplength=700,
@@ -86,6 +87,13 @@ class CreatorsProjects:
             pady=3,
         )
         project_details_directory_path.grid(
+            row=3,
+            column=0,
+            sticky="ew",
+            padx=5,
+            pady=3,
+        )
+        project_details_code.grid(
             row=2,
             column=0,
             sticky="ew",
@@ -95,14 +103,14 @@ class CreatorsProjects:
 
         structure_frame = ttk.Frame(project_details_frame)
         structure_frame.grid(
-            row=3,
+            row=4,
             column=0,
             sticky="nsew",
             padx=5,
             pady=5,
         )
         project_details_frame.grid_columnconfigure(0, weight=1)
-        project_details_frame.grid_rowconfigure(3, weight=1)
+        project_details_frame.grid_rowconfigure(4, weight=1)
         structure_widgets = {}
         structure_titles = ("Characters", "Levels", "Shots", "Props", "Settings")
         for column in range(3):
@@ -132,7 +140,7 @@ class CreatorsProjects:
 
         project_structure_status_label = ttk.Label(project_details_frame, text="")
         project_structure_status_label.grid(
-            row=4,
+            row=5,
             column=0,
             sticky="ew",
             padx=5,
@@ -140,7 +148,7 @@ class CreatorsProjects:
         )
         project_structure_buttons = ttk.Frame(project_details_frame)
         project_structure_buttons.grid(
-            row=5,
+            row=6,
             column=0,
             sticky="ew",
             padx=5,
@@ -148,20 +156,16 @@ class CreatorsProjects:
         )
         project_structure_button = ttk.Button(
             project_structure_buttons,
-            text="Edit Characters, Levels, Shots, Props, and Settings",
+            text="Edit Project",
             command=lambda: CreatorsProjectDetails.show_project_structure_editor(ref),
             state="disabled",
         )
         project_structure_button.pack(side="left", fill="x", expand=True)
         project_structure_discard_button = ttk.Button(
             project_structure_buttons,
-            text="Discard Local Draft",
+            text="Discard Draft",
             command=lambda: CreatorsProjectDetails.discard_project_structure_draft(ref),
             state="disabled",
-        )
-        project_structure_discard_button.pack(
-            side="right",
-            padx=(5, 0),
         )
 
         ref.new_project_button = new_project_button
@@ -171,6 +175,7 @@ class CreatorsProjects:
         ref.project_details_label = project_details_label
         ref.project_details_status = project_details_status
         ref.project_details_directory_path = project_details_directory_path
+        ref.project_details_code = project_details_code
         ref.project_status_var = project_status_var
         ref.project_status_menu = project_details_status
         ref.project_structure_status_label = project_structure_status_label
@@ -210,6 +215,7 @@ class CreatorsProjects:
         dialog.grab_set()
 
         name_var = tk.StringVar()
+        project_code_var = tk.StringVar()
         status_var = tk.StringVar(value=Status.NOT_STARTED.value)
         directory_var = tk.StringVar()
 
@@ -229,8 +235,29 @@ class CreatorsProjects:
             padx=10,
             pady=(10, 4),
         )
-        ttk.Label(dialog, text="Status").grid(
+        ttk.Label(dialog, text="Project Code").grid(
             row=1,
+            column=0,
+            sticky="w",
+            padx=10,
+            pady=4,
+        )
+        ttk.Entry(dialog, textvariable=project_code_var, width=8).grid(
+            row=1,
+            column=1,
+            sticky="w",
+            padx=10,
+            pady=4,
+        )
+        ttk.Label(dialog, text="2-5 letters, no spaces").grid(
+            row=1,
+            column=2,
+            sticky="w",
+            padx=10,
+            pady=4,
+        )
+        ttk.Label(dialog, text="Status").grid(
+            row=2,
             column=0,
             sticky="w",
             padx=10,
@@ -243,7 +270,7 @@ class CreatorsProjects:
             state="readonly",
         )
         status_menu.grid(
-            row=1,
+            row=2,
             column=1,
             columnspan=2,
             sticky="ew",
@@ -251,14 +278,14 @@ class CreatorsProjects:
             pady=4,
         )
         ttk.Label(dialog, text="Directory").grid(
-            row=2,
+            row=3,
             column=0,
             sticky="w",
             padx=10,
             pady=4,
         )
         ttk.Entry(dialog, textvariable=directory_var, width=32).grid(
-            row=2,
+            row=3,
             column=1,
             sticky="ew",
             padx=(10, 4),
@@ -271,11 +298,11 @@ class CreatorsProjects:
                 dialog,
                 directory_var,
             ),
-        ).grid(row=2, column=2, padx=(0, 10), pady=4)
+        ).grid(row=3, column=2, padx=(0, 10), pady=4)
 
         button_row = ttk.Frame(dialog)
         button_row.grid(
-            row=3,
+            row=4,
             column=0,
             columnspan=3,
             sticky="e",
@@ -294,6 +321,7 @@ class CreatorsProjects:
                 ref,
                 dialog,
                 name_var.get(),
+                project_code_var.get(),
                 status_var.get(),
                 directory_var.get(),
             ),
@@ -312,20 +340,32 @@ class CreatorsProjects:
             directory_var.set(directory)
 
     @staticmethod
-    def save_new_project(ref, dialog, name, status, directory_path):
+    def save_new_project(ref, dialog, name, project_code, status, directory_path):
         name = name.strip()
+        project_code = project_code.strip()
         directory_path = directory_path.strip()
-        if not name or not directory_path:
+        if not name or not project_code or not directory_path:
             messagebox.showerror(
                 "Invalid project",
-                "Enter a project name and choose a directory.",
+                "Enter a project name and code, and choose a directory.",
                 parent=dialog,
             )
             return
         try:
+            from db.project_structure import ProjectStructure
+
+            ProjectStructure.ValidateProjectCode(
+                project_code,
+                allow_empty=False,
+            )
             project_status = Status(status)
             directory_path = str(Path(directory_path).expanduser().resolve())
-            project = Project(name, project_status, directory_path)
+            project = Project(
+                name,
+                project_status,
+                directory_path,
+                project_code=project_code,
+            )
             if not Path(directory_path).is_dir():
                 raise ValueError("Choose an existing project directory.")
             if not ref.selected_who:
