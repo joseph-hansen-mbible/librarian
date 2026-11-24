@@ -38,12 +38,25 @@ def CheckOutBlenderFile(filepath, artist, project, ref):
         worker_path = ref.get_worker_network_base_path(
             os.path.join(ref.network_base_path_variable.get(), project)
         )
-        core.FossaWorker(
+        checkout_worker = core.FossaWorker(
             core.LFRoles.CACHING,
             worker_path,
             artist,
             ref.database,
-        ).CheckOutBlenderFile(filepath)
+        )
+        if checkout_worker.CheckOutBlenderFile(filepath):
+            listener = core.FossaWorker(
+                core.LFRoles.BLENDER,
+                worker_path,
+                artist,
+                ref.database,
+            )
+            try:
+                listener.WatchBlenderFile(filepath)
+            except (OSError, RuntimeError, ValueError):
+                listener.Destroy()
+                raise
+            ref._blender_checkout_listener = listener
 
 
 def CheckInBlenderFile(artist, project, ref):

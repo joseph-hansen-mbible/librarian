@@ -17,6 +17,7 @@ class CacheWorkerMethods:
         appdata = dirs.user_data_path
         self.appdata_path = appdata
         self.cache_file_path = appdata / f"{self.name}_cache.flf"
+        self.blender_cache_file_path = appdata / "blender_cache.flf"
         self.cache_role_lock_file_path = appdata / f"{LFRoles.CACHING.value}.flf"
         self.conflicts_file_path = appdata / "Conflicts.flf"
 
