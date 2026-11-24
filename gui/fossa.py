@@ -20,11 +20,18 @@ from objects.References import References
 from db import fossadb
 from workers import core
 
+
 def main():
+    print("Starting FOSSA GUI...")
     who = Who.Who()
+    print(f"Current user: {who.options}")
     ref = References()
+    print(f"Set up references")
     ref.who = who
+    print(f"Set who")
     Helpers.FossaMain(ref)
+    print("FOSSA GUI closed.")
+
 
 def CheckOutBlenderFile(filepath, artist, project, ref):
     if ref.database_connected:
@@ -37,6 +44,7 @@ def CheckOutBlenderFile(filepath, artist, project, ref):
             artist,
             ref.database,
         ).CheckOutBlenderFile(filepath)
+
 
 def CheckInBlenderFile(artist, project, ref):
     # you can only checkout one at a time so the filepath doesn't matter
@@ -53,6 +61,7 @@ def CheckInBlenderFile(artist, project, ref):
         ).CheckInBlenderFile()
     # this needs to connect to Blender and never be called directly, only through bpy,
     # to ensure that when a file is checked back in it CANNOT be edited without checking out again
+
 
 if __name__ == "__main__":
     main()

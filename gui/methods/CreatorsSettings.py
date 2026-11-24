@@ -10,7 +10,8 @@ class CreatorsSettings:
         settings_window.title("Settings")
         settings_window.geometry("700x700")
         settings_window.minsize(500, 400)
-        settings_window.transient(ref.main_window)
+        if ref.selected_who is not None:
+            settings_window.transient(ref.main_window)
         settings_window.withdraw()
         settings_window.protocol(
             "WM_DELETE_WINDOW",

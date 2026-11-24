@@ -117,19 +117,17 @@ def FossaMain(ref, on_ready=None):
     if on_ready is not None:
         ref.main_ready_timer = ref.main_window.after_idle(on_ready)
 
-    FossaIcon(ref.main_window)
+    try:
+        FossaIcon(ref.main_window)
+    except Exception as e:
+        print(f"Failed to set application icon: {e}", file=sys.stderr)
+        ref.main_window.mainloop()
 
 def FossaIcon(main_window):
-        # Icon
-    try:
-        # macos/linux
-        photo = tk.PhotoImage(file='./assets/icon.png') #.png or .gif
-        main_window.iconphoto(False, photo)
-    except tk.TclError:
-        # windows
-        main_window.iconbitmap('./assets/icon.ico')
-    finally:
-        main_window.mainloop()
+    icon_path = Path(__file__).resolve().parent.parent / "assets" / "icon.png"
+    photo = tk.PhotoImage(file=str(icon_path))
+    main_window.iconphoto(False, photo)
+    main_window.mainloop()
 
 def FossaMenus(ref):
     root = ref.main_window
