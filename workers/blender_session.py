@@ -10,13 +10,6 @@ from workers.models import LocalCacheData, LFRoles
 
 
 BLENDER_CACHE_POLL_SECONDS = 20
-BLENDER_CACHE_FIELDS = (
-    "current_file",
-    "recent_files",
-    "current_file_checklist",
-    "unlock_ssot_request",
-    "ssot_unlock_count",
-)
 
 
 def BlenderSessionCachePath(artist):
@@ -94,6 +87,27 @@ def WriteInitialBlenderSessionCache(fossa_db, artist, filepath):
     return cache_path
 
 
+def StartBlenderSessionMonitor(
+    artist,
+    network_base_path,
+    fossa_db,
+    filepath,
+    failure_callback=None,
+):
+    cache_path = WriteInitialBlenderSessionCache(
+        fossa_db,
+        artist,
+        filepath,
+    )
+    return BlenderSessionMonitor(
+        artist,
+        network_base_path,
+        fossa_db,
+        cache_path,
+        failure_callback=failure_callback,
+    ).Start()
+
+
 class BlenderSessionMonitor:
     _active_monitors = set()
     _active_monitors_lock = Lock()
@@ -105,14 +119,17 @@ class BlenderSessionMonitor:
         fossa_db,
         cache_path,
         poll_interval=BLENDER_CACHE_POLL_SECONDS,
+        failure_callback=None,
     ):
         self.artist = artist
         self.network_base_path = Path(network_base_path).expanduser().resolve()
         self.fossa_db = fossa_db
         self.cache_path = Path(cache_path).expanduser().resolve()
         self.poll_interval = poll_interval
+        self.failure_callback = failure_callback
         self._closed = False
-        self._last_revision = None
+        self._last_revision = 0
+        self._last_reported_failure = None
         self._timer = None
         self._lock = Lock()
 
@@ -176,9 +193,12 @@ class BlenderSessionMonitor:
         if has_update:
             if self._ForwardCacheData(cache_data):
                 self._last_revision = revision
+                self._last_reported_failure = None
                 if not blender_open:
                     self.Stop()
                     return
+        else:
+            self._last_reported_failure = None
 
         self._Schedule(self.poll_interval)
 
@@ -203,6 +223,7 @@ class BlenderSessionMonitor:
                 self.network_base_path,
                 self.artist,
                 self.fossa_db,
+                failure_callback=self._NotifyFailure,
             )
             worker.local_cache_data = local_cache_data
             queued = worker.CacheData()
@@ -214,7 +235,7 @@ class BlenderSessionMonitor:
             if not accepted and not worker._closed:
                 worker.Destroy()
             return accepted
-        except (OSError, RuntimeError, TypeError, ValueError) as error:
+        except Exception as error:
             self._ReportFailure(f"failed to forward Blender cache: {error}")
             if worker is not None and not worker._closed:
                 worker.Destroy()
@@ -251,3 +272,12 @@ class BlenderSessionMonitor:
             network_base_path=self.network_base_path,
             artist=self.artist,
         )
+        self._NotifyFailure(message)
+
+    def _NotifyFailure(self, message):
+        if (
+            self.failure_callback is not None
+            and message != self._last_reported_failure
+        ):
+            self._last_reported_failure = message
+            self.failure_callback(message)

@@ -23,6 +23,10 @@ from methods.CreatorsProjects import CreatorsProjects
 from objects.References import References
 from db import fossadb
 from workers import core
+from workers.blender_session import (
+    BlenderSessionMonitor,
+    StartBlenderSessionMonitor,
+)
 
 CLOSE_APPLICATION_TIMEOUT_MS = 1_000
 CLOSE_APPLICATION_POLL_MS = 50
@@ -618,9 +622,38 @@ def FossaExecuteCommand(ref):
         filepath.parent.mkdir(parents=True, exist_ok=True)
         ref.database.MarkBlenderFileCreationPending(artist, filepath)
         try:
+            ref._blender_session_monitor = StartBlenderSessionMonitor(
+                artist,
+                project.directory_path,
+                ref.database,
+                filepath,
+                failure_callback=lambda error: _ReportBlenderSessionFailure(
+                    ref,
+                    error,
+                ),
+            )
             _LaunchBlender(ref)
-        except (OSError, RuntimeError):
-            ref.database.ClearBlenderFileCreationPending(artist, filepath)
+        except Exception as error:
+            cleanup_errors = []
+            try:
+                ref.database.ClearBlenderFileCreationPending(artist, filepath)
+            except Exception as cleanup_error:
+                cleanup_errors.append(
+                    f"Could not clear pending file creation: {cleanup_error}"
+                )
+            rollback_error = _RollbackBlenderCheckout(
+                ref,
+                artist,
+                project.directory_path,
+            )
+            if rollback_error is not None:
+                cleanup_errors.append(
+                    f"Could not release the Blender checkout: {rollback_error}"
+                )
+            if cleanup_errors:
+                raise RuntimeError(
+                    f"{error}\n" + "\n".join(cleanup_errors)
+                ) from error
             raise
 
         ref._pending_blender_creation = {
@@ -639,6 +672,10 @@ def FossaExecuteCommand(ref):
                 project.directory_path,
                 artist,
                 ref.database,
+                failure_callback=lambda error: _ReportBlenderSessionFailure(
+                    ref,
+                    error,
+                ),
             )
             scheduled = worker.ScheduleBlenderFileCheckout(
                 filepath,
@@ -651,15 +688,34 @@ def FossaExecuteCommand(ref):
             )
             if not scheduled:
                 raise RuntimeError("Could not schedule the Blender file checkout.")
-        except (OSError, RuntimeError, TypeError, ValueError):
-            ref.database.ClearBlenderFileCreationPending(artist, filepath)
+        except Exception as error:
+            cleanup_errors = []
+            try:
+                ref.database.ClearBlenderFileCreationPending(artist, filepath)
+            except Exception as cleanup_error:
+                cleanup_errors.append(
+                    f"Could not clear pending file creation: {cleanup_error}"
+                )
             ref._pending_blender_creation = None
             ref.command_execute_button.configure(state="normal")
+            rollback_error = _RollbackBlenderCheckout(
+                ref,
+                artist,
+                project.directory_path,
+            )
             if worker is not None and not worker._closed:
                 worker.Destroy()
+            if rollback_error is not None:
+                cleanup_errors.append(
+                    f"Could not release the Blender checkout: {rollback_error}"
+                )
+            if cleanup_errors:
+                raise RuntimeError(
+                    f"{error}\n" + "\n".join(cleanup_errors)
+                ) from error
             raise
         return True
-    except (OSError, RuntimeError, TypeError, ValueError) as error:
+    except Exception as error:
         messagebox.showerror(
             "Could not open Blender file",
             str(error),
@@ -675,6 +731,56 @@ def _LaunchBlender(ref):
         subprocess.Popen(["open", "-a", str(executable)])
     else:
         subprocess.Popen([str(executable)])
+
+def _ReportBlenderSessionFailure(ref, message):
+    if getattr(ref, "_close_application_started", False):
+        return
+
+    def show_error():
+        if not getattr(ref, "_close_application_started", False):
+            messagebox.showerror(
+                "Blender session error",
+                message,
+                parent=ref.main_window,
+            )
+
+    try:
+        ref.main_window.after(0, show_error)
+    except (RuntimeError, tk.TclError) as error:
+        print(
+            f"Could not show Blender session error: {error}",
+            file=sys.stderr,
+        )
+
+def _StopBlenderSessionMonitor(ref):
+    monitor = getattr(ref, "_blender_session_monitor", None)
+    if monitor is not None:
+        monitor.Stop()
+        ref._blender_session_monitor = None
+
+def _CheckInBlenderFile(ref, artist, worker_path):
+    worker = core.FossaWorker(
+        core.LFRoles.CACHING,
+        worker_path,
+        artist,
+        ref.database,
+        failure_callback=lambda error: _ReportBlenderSessionFailure(
+            ref,
+            error,
+        ),
+    )
+    if not worker.CheckInBlenderFile():
+        raise RuntimeError(
+            "The check-in could not be queued for database update."
+        )
+
+def _RollbackBlenderCheckout(ref, artist, worker_path):
+    _StopBlenderSessionMonitor(ref)
+    try:
+        _CheckInBlenderFile(ref, artist, worker_path)
+    except Exception as error:
+        return error
+    return None
 
 def FossaUpdateRecentFileOpenButton(ref):
     selection = ref.recent_files_treeview.selection()
@@ -735,7 +841,7 @@ def FossaOpenSelectedRecentFile(ref):
             worker_path,
             metadata,
         )
-    except (OSError, RuntimeError, TypeError, ValueError) as error:
+    except Exception as error:
         messagebox.showerror(
             "Could not open recent Blender file",
             str(error),
@@ -751,24 +857,21 @@ def _CheckoutAndOpenBlenderFile(
     worker_path,
     metadata,
 ):
-    worker = None
-    try:
-        worker = core.FossaWorker(
-            core.LFRoles.CACHING,
-            worker_path,
-            artist,
-            ref.database,
+    worker = core.FossaWorker(
+        core.LFRoles.CACHING,
+        worker_path,
+        artist,
+        ref.database,
+        failure_callback=lambda error: _ReportBlenderSessionFailure(
+            ref,
+            error,
+        ),
+    )
+    if not worker.CheckOutBlenderFile(filepath):
+        raise RuntimeError(
+            "This Blender file is already checked out, or the "
+            "database is unavailable."
         )
-        if not worker.CanCheckOutBlenderFile(filepath):
-            raise RuntimeError(
-                "This Blender file is already checked out, or the "
-                "database is unavailable."
-            )
-        if not worker.CheckOutBlenderFile(filepath):
-            raise RuntimeError("The Blender file could not be checked out.")
-    finally:
-        if worker is not None and not worker._closed:
-            worker.Destroy()
 
     metadata_error = None
     try:
@@ -777,10 +880,29 @@ def _CheckoutAndOpenBlenderFile(
             filepath,
             metadata,
         )
-    except (OSError, RuntimeError, TypeError, ValueError) as error:
+    except Exception as error:
         metadata_error = error
     FossaUpdateMainFileLists(ref, schedule=False)
-    _LaunchBlender(ref)
+    try:
+        ref._blender_session_monitor = StartBlenderSessionMonitor(
+            artist,
+            worker_path,
+            ref.database,
+            filepath,
+            failure_callback=lambda error: _ReportBlenderSessionFailure(
+                ref,
+                error,
+            ),
+        )
+        _LaunchBlender(ref)
+    except Exception as error:
+        rollback_error = _RollbackBlenderCheckout(ref, artist, worker_path)
+        if rollback_error is not None:
+            raise RuntimeError(
+                f"{error}\nCould not release the Blender checkout: "
+                f"{rollback_error}"
+            ) from error
+        raise
     if metadata_error is not None:
         messagebox.showerror(
             "Could not update file lists",
@@ -796,6 +918,16 @@ def _SchedulePendingBlenderFileCheckoutResult(
     error,
 ):
     if getattr(ref, "_close_application_started", False):
+        try:
+            pending["database"].ClearBlenderFileCreationPending(
+                pending["artist"],
+                pending["filepath"],
+            )
+        except Exception as clear_error:
+            print(
+                f"Failed to clear pending Blender file creation: {clear_error}",
+                file=sys.stderr,
+            )
         return
     try:
         ref.main_window.after(
@@ -814,6 +946,17 @@ def _SchedulePendingBlenderFileCheckoutResult(
         )
 
 def _FinishPendingBlenderFileCheckout(ref, pending, checked_out, error):
+    reported_errors = []
+    try:
+        pending["database"].ClearBlenderFileCreationPending(
+            pending["artist"],
+            pending["filepath"],
+        )
+    except Exception as clear_error:
+        reported_errors.append(
+            f"Could not clear pending file creation: {clear_error}"
+        )
+
     if checked_out:
         try:
             pending["database"].RecordBlenderFileUse(
@@ -821,14 +964,21 @@ def _FinishPendingBlenderFileCheckout(ref, pending, checked_out, error):
                 pending["filepath"],
                 pending["metadata"],
             )
-        except (OSError, RuntimeError, TypeError, ValueError) as metadata_error:
-            if error is None:
-                error = metadata_error
-            else:
-                print(
-                    f"Failed to record Blender file metadata: {metadata_error}",
-                    file=sys.stderr,
-                )
+        except Exception as metadata_error:
+            reported_errors.append(
+                f"Could not record Blender file metadata: {metadata_error}"
+            )
+
+    if not checked_out:
+        rollback_error = _RollbackBlenderCheckout(
+            ref,
+            pending["artist"],
+            pending["project"].directory_path,
+        )
+        if rollback_error is not None:
+            reported_errors.append(
+                f"Could not release the Blender checkout: {rollback_error}"
+            )
 
     ref._pending_blender_creation = None
     ref.command_execute_button.configure(state="normal")
@@ -839,9 +989,11 @@ def _FinishPendingBlenderFileCheckout(ref, pending, checked_out, error):
             "be in use or the database may be unavailable."
         )
     if error is not None:
+        reported_errors.append(str(error))
+    if reported_errors:
         messagebox.showerror(
             "Could not check out Blender file",
-            str(error),
+            "\n\n".join(reported_errors),
             parent=ref.main_window,
         )
 
@@ -942,6 +1094,7 @@ def FossaCloseApplication(ref):
 
     def clean_up_workers():
         try:
+            BlenderSessionMonitor.StopAll()
             core.FossaWorker.DestroyAll()
         except Exception as error:
             cleanup_error[0] = error

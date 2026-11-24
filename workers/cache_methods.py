@@ -3,7 +3,7 @@ import json
 import os
 from pathlib import Path
 import shutil
-from threading import Timer
+from threading import Thread, Timer
 
 from platformdirs import PlatformDirs
 
@@ -17,7 +17,6 @@ class CacheWorkerMethods:
         appdata = dirs.user_data_path
         self.appdata_path = appdata
         self.cache_file_path = appdata / f"{self.name}_cache.flf"
-        self.blender_cache_file_path = appdata / "blender_cache.flf"
         self.cache_role_lock_file_path = appdata / f"{LFRoles.CACHING.value}.flf"
         self.conflicts_file_path = appdata / "Conflicts.flf"
 
@@ -121,6 +120,7 @@ class CacheWorkerMethods:
                 worker_path,
                 artist,
                 fossa_db,
+                failure_callback=self.failure_callback,
             )
         finally:
             self.Destroy()
@@ -284,7 +284,7 @@ class CacheWorkerMethods:
                     self.role = self.initial_role
         return self.ScheduleLocalCacheCopyToNetwork()
 
-    def CanCheckOutBlenderFile(self, filepath):
+    def CanCheckOutBlenderFile(self, filepath, allow_pending_create=False):
         if self._closed:
             return False
         return self.fossa_db.CanCheckOutBlenderFile(
@@ -292,13 +292,25 @@ class CacheWorkerMethods:
             filepath,
             failure_reporter=self._ReportFailure,
             network_base_path=self.network_base_path,
+            allow_pending_create=allow_pending_create,
         )
 
-    def CheckOutBlenderFile(self, filepath):
+    def _HasPendingCacheWork(self):
+        retry_timer = self._cache_copy_retry_timer
+        return (
+            self._network_cache_queued
+            or self._finishing_cache_queue
+            or (retry_timer is not None and retry_timer.is_alive())
+        )
+
+    def CheckOutBlenderFile(self, filepath, allow_pending_create=False):
         if self._closed:
             return False
         try:
-            if not self.CanCheckOutBlenderFile(filepath):
+            if not self.CanCheckOutBlenderFile(
+                filepath,
+                allow_pending_create=allow_pending_create,
+            ):
                 return False
             requested_path = str(Path(filepath).expanduser().resolve())
             self.local_cache_data.current_file = requested_path
@@ -311,9 +323,58 @@ class CacheWorkerMethods:
             self.CacheData()
             return True
         finally:
-            self.Destroy()
+            if not self._HasPendingCacheWork():
+                self.Destroy()
+
+    def ScheduleBlenderFileCheckout(self, filepath, callback):
+        if self._closed:
+            return False
+        if self.role is not LFRoles.CACHING:
+            raise RuntimeError(
+                "Blender file checkout requires a caching worker"
+            )
+        if not callable(callback):
+            raise TypeError("Checkout callback must be callable")
+
+        checkout_thread = Thread(
+            target=self._RunScheduledBlenderFileCheckout,
+            args=(filepath, callback),
+            daemon=True,
+        )
+        try:
+            checkout_thread.start()
+        except RuntimeError as error:
+            self._ReportFailure(
+                f"failed to schedule Blender file checkout: {error}"
+            )
+            raise
+        return True
+
+    def _RunScheduledBlenderFileCheckout(self, filepath, callback):
+        checked_out = False
+        error = None
+        try:
+            checked_out = self.CheckOutBlenderFile(
+                filepath,
+                allow_pending_create=True,
+            )
+        except Exception as checkout_error:
+            error = checkout_error
+            if not self._closed:
+                try:
+                    self.Destroy()
+                except Exception as cleanup_error:
+                    error = ExceptionGroup(
+                        "Blender checkout and worker cleanup failed",
+                        [checkout_error, cleanup_error],
+                    )
+
+        callback(checked_out, error)
 
     def CheckInBlenderFile(self):
         self.local_cache_data.current_file = ""
-        self.CacheData()
-        self.Destroy()
+        try:
+            return self.CacheData() or self._HasPendingCacheWork()
+        finally:
+            if not self._HasPendingCacheWork():
+                self.Destroy()

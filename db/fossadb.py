@@ -134,11 +134,20 @@ class FossaDB(ProjectMethods):
             raise
 
     def CanCheckOutBlenderFile(
-        self, artist, filepath, failure_reporter=None, network_base_path=None
+        self,
+        artist,
+        filepath,
+        failure_reporter=None,
+        network_base_path=None,
+        allow_pending_create=False,
     ):
         """Return whether the file is free, reserving it for this artist on success."""
         try:
-            return self._TryReserveBlenderFile(artist, filepath)
+            return self._TryReserveBlenderFile(
+                artist,
+                filepath,
+                allow_pending_create=allow_pending_create,
+            )
         except Exception as error:
             message = (
                 f"Blender file checkout check failed: "
@@ -257,7 +266,12 @@ class FossaDB(ProjectMethods):
             finally:
                 file_lock.flock(lock_file.fileno(), file_lock.LOCK_UN)
 
-    def _TryReserveBlenderFile(self, artist, filepath):
+    def _TryReserveBlenderFile(
+        self,
+        artist,
+        filepath,
+        allow_pending_create=False,
+    ):
         artist = str(artist)
         if not artist:
             raise ValueError("Artist must not be empty")
@@ -275,6 +289,34 @@ class FossaDB(ProjectMethods):
 
             try:
                 database = self._ReadDatabase()
+                artist_data = database.get(artist, {})
+                if not isinstance(artist_data, dict):
+                    raise ValueError(
+                        f"Cache data for {artist!r} must be a JSON object"
+                    )
+                current_file = artist_data.get("current_file")
+                if current_file not in (None, ""):
+                    if not isinstance(current_file, str):
+                        raise ValueError(
+                            f"Current file for {artist!r} must be a string"
+                        )
+                    return False
+                pending_file = artist_data.get("pending_create_file")
+                if pending_file not in (None, ""):
+                    if not isinstance(pending_file, str):
+                        raise ValueError(
+                            f"Pending file for {artist!r} must be a string"
+                        )
+                    if (
+                        Path(pending_file).expanduser().resolve()
+                        != requested_path
+                    ):
+                        return False
+                    if not allow_pending_create:
+                        return False
+                elif allow_pending_create:
+                    return False
+
                 for owner, cache_data in database.items():
                     if not isinstance(cache_data, dict):
                         raise ValueError(
@@ -293,11 +335,6 @@ class FossaDB(ProjectMethods):
                     if Path(current_file).expanduser().resolve() == requested_path:
                         return False
 
-                artist_data = database.get(artist, {})
-                if not isinstance(artist_data, dict):
-                    raise ValueError(
-                        f"Cache data for {artist!r} must be a JSON object"
-                    )
                 artist_data["current_file"] = str(requested_path)
                 database[artist] = artist_data
                 self._WriteDatabase(database)

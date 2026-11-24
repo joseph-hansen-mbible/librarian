@@ -33,7 +33,6 @@ class LFRoles(Enum):
     CACHING = "caching"
     CONFLICT_RESOLUTION = "conflict_resolution"
     RECORDS = "records"
-    BLENDER = "blender"
     APPROVAL_NEEDED = "approval_needed"
 
 

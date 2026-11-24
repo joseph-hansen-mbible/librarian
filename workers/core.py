@@ -9,24 +9,29 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from db import file_lock
-from workers.blender_methods import BlenderWorkerMethods
 from workers.cache_methods import CacheWorkerMethods
 from workers.models import LFRoles, LocalCacheData, WorkerNames
 from workers.project_methods import ProjectWorkerMethods
 
 
-class FossaWorker(
-    BlenderWorkerMethods, CacheWorkerMethods, ProjectWorkerMethods
-):
+class FossaWorker(CacheWorkerMethods, ProjectWorkerMethods):
     _active_workers = set()
     _active_workers_lock = Lock()
 
-    def __init__(self, role, network_base_path, artist, fossa_db):
+    def __init__(
+        self,
+        role,
+        network_base_path,
+        artist,
+        fossa_db,
+        failure_callback=None,
+    ):
         self.role = role
         self.initial_role = role
         self.artist = artist
         self.network_base_path = Path(network_base_path).resolve()
         self.fossa_db = fossa_db
+        self.failure_callback = failure_callback
         self.name = "UNASSIGNED"
         self._closed = False
         self._cache_role_lock_handle = None
@@ -36,7 +41,6 @@ class FossaWorker(
         self._cache_copy_guard = Lock()
         self._database_retry_timer = None
         self._database_update_guard = Lock()
-        self._blender_watch_timer = None
         self.local_cache_data = LocalCacheData("", [], {}, False, 0)
 
         try:
@@ -57,7 +61,6 @@ class FossaWorker(
         worker_descriptions = {
             LFRoles.DB_ACCESS: "database access worker",
             LFRoles.CACHING: "caching worker",
-            LFRoles.BLENDER: "Blender file listener",
             LFRoles.CONFLICT_RESOLUTION: "conflict resolution worker",
             LFRoles.RECORDS: "records worker",
             LFRoles.APPROVAL_NEEDED: "project change approval worker",
@@ -89,6 +92,7 @@ class FossaWorker(
             return False
 
         reporter = None
+        logged = False
         try:
             reporter_path = self.network_base_path
             if not reporter_path.is_relative_to(
@@ -101,15 +105,18 @@ class FossaWorker(
                 self.artist,
                 self.fossa_db,
             )
-            return reporter.LogToRecords(f"failure: {message}")
+            logged = reporter.LogToRecords(f"failure: {message}")
         except Exception:
-            return False
+            logged = False
         finally:
             if reporter is not None:
                 try:
                     reporter.Destroy()
                 except Exception:
                     pass
+        if self.failure_callback is not None:
+            self.failure_callback(message)
+        return logged
 
     def AssignName(self):
         worker_id_path = self.BuildLFPath(LFRoles.WORKER_ID)
@@ -270,7 +277,6 @@ class FossaWorker(
         for timer_name in (
             "_cache_copy_retry_timer",
             "_database_retry_timer",
-            "_blender_watch_timer",
         ):
             timer = getattr(self, timer_name)
             if timer is not None:
