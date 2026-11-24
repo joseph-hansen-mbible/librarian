@@ -153,6 +153,7 @@ def FossaMenus(ref):
     root.config(menu=menubar)
     options_menu = Menu(menubar, tearoff=False)
     settings_menu = Menu(menubar,tearoff=False)
+    tools_menu = Menu(menubar, tearoff=False)
 
     options_menu.add_command(
         label='Increase Font Size',
@@ -174,6 +175,16 @@ def FossaMenus(ref):
         label="Settings",
         menu=settings_menu
     )
+    
+    tools_menu.add_command(label="Fix Stranded Checkouts", command=lambda: print("TODO"))
+    tools_menu.add_command(label="Open Records", command=lambda: print("TODO"))
+    tools_menu.add_command(label="Free Up Stuck Workers", command=lambda: print("TODO"))
+    tools_menu.add_command(label="Restart Fossa", command=lambda: print("TODO"))
+    
+    menubar.add_cascade(
+            label="Tools",
+            menu=tools_menu
+        )
     
 def FossaStatusBar(ref, schedule):
     network_base_path = ref.network_base_path_variable.get().strip()

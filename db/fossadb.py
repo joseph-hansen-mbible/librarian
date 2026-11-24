@@ -15,6 +15,11 @@ class FossaDB(ProjectMethods):
     SCENE_NUMBER_PATTERN = ProjectStructure.SCENE_NUMBER_PATTERN
     SHOT_NAME_PATTERN = ProjectStructure.SHOT_NAME_PATTERN
     REQUIRED_PROJECT_APPROVALS = ProjectStructure.REQUIRED_APPROVALS
+    
+    def ResetStrandedCheckouts(self):
+        # TODO: Fix stranded Blender files when it happens- which it does, since Blender
+        # loves to crash
+        pass
 
     def __init__(self, network_base_path):
         self.network_base_path = Path(network_base_path).resolve()
@@ -186,9 +191,13 @@ class FossaDB(ProjectMethods):
 
                 current_file = artist_data.get("current_file")
                 if isinstance(current_file, str) and current_file:
+                    # TODO: if we hit this point, it's possible that a check-in failed
+                    # and we have a hanging checked-out file not actually open in Blender
+                    # so we need to check-in, then check-out, instead of raising an error
                     raise RuntimeError(
                         f"{artist!r} already has a checked-out Blender file"
                     )
+                    
                 if current_file not in (None, ""):
                     raise ValueError(
                         f"Current file for {artist!r} must be a string"
