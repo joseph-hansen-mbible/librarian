@@ -116,6 +116,10 @@ def FossaMain(ref, on_ready=None):
         "<<TreeviewSelect>>",
         lambda _event: _Helpers.FossaUpdateSSOTButtons(ref),
     )
+    ref.open_file_button.configure(
+        command=lambda: _Helpers.FossaOpenSelectedLockFile(ref),
+        state="disabled",
+    )
     ref.view_ssot_checklist_button.configure(
         command=lambda: _Helpers.FossaOpenSSOTChecklist(ref),
         state="disabled",
@@ -238,4 +242,3 @@ def FossaCloseApplication(ref):
         CLOSE_APPLICATION_POLL_MS,
         poll_close,
     )
-

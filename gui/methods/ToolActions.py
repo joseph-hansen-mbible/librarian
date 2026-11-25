@@ -185,6 +185,17 @@ def FossaUpdateSSOTButtons(ref):
     if not isinstance(metadata, dict):
         metadata = {}
     has_selection = filepath is not None
+    can_open = (
+        has_selection
+        and isinstance(filepath, str)
+        and Path(filepath).is_file()
+        and getattr(ref, "database_connected", False)
+        and getattr(ref, "blender_ready", False)
+        and bool(getattr(ref, "selected_who", None))
+    )
+    ref.open_file_button.configure(
+        state="normal" if can_open else "disabled"
+    )
     try:
         status = str(metadata.get("status", "")).casefold()
     except:
@@ -210,6 +221,51 @@ def FossaUpdateSSOTButtons(ref):
             )
     else:
         ref.request_unlock_ssot_button.pack_forget()
+
+def FossaOpenSelectedLockFile(ref):
+    from gui.methods.BlenderActions import _CheckoutAndOpenBlenderFile
+    from gui.methods.MainLists import (
+        FossaUpdateMainFileLists,
+        _ProjectForPath,
+    )
+
+    filepath, metadata = _SelectedLockFile(ref)
+    if filepath is None:
+        return False
+    filepath = Path(filepath)
+
+    try:
+        if not getattr(ref, "database_connected", False) or ref.database is None:
+            raise RuntimeError("The database is not connected.")
+        if not getattr(ref, "blender_ready", False):
+            raise RuntimeError("The Blender executable is not configured.")
+        if not filepath.is_file():
+            raise FileNotFoundError(f"Blender file is unavailable: {filepath}")
+        artist = getattr(ref, "selected_who", None)
+        if not artist:
+            raise RuntimeError("Choose an artist before opening a Blender file.")
+
+        project = _ProjectForPath(ref, filepath)
+        worker_path = (
+            project.directory_path
+            if project is not None
+            else ref.get_worker_network_base_path()
+        )
+        return _CheckoutAndOpenBlenderFile(
+            ref,
+            artist,
+            filepath,
+            worker_path,
+            metadata,
+        )
+    except Exception as error:
+        messagebox.showerror(
+            "Could not open Blender file",
+            str(error),
+            parent=ref.main_window,
+        )
+        FossaUpdateMainFileLists(ref, schedule=False)
+        return False
 
 def FossaOpenSSOTChecklist(ref):
     filepath, initial_metadata = _SelectedLockFile(ref)

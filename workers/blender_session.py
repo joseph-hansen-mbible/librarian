@@ -80,9 +80,6 @@ def WriteInitialBlenderSessionCache(fossa_db, artist, filepath):
         "current_file_notes": notes,
         "increment_from": "",
         "increment_to": "",
-        "current_file_notes": notes,
-        "increment_from": "",
-        "increment_to": "",
     }
     cache_path = BlenderSessionCachePath(artist)
     cache_path.parent.mkdir(parents=True, exist_ok=True)

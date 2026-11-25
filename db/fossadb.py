@@ -795,6 +795,17 @@ class FossaDB(ProjectMethods):
                         incoming_notes = ""
                     cache_data["current_file_notes"] = incoming_notes
 
+                    closing_file = artist_data.get("current_file", "")
+                    if isinstance(closing_file, str) and closing_file:
+                        files = database.setdefault("__blender_files__", {})
+                        if isinstance(files, dict):
+                            closing_record = files.get(closing_file)
+                            if isinstance(closing_record, dict):
+                                closing_record["checklist"] = dict(
+                                    incoming_checklist
+                                )
+                                closing_record["notes"] = incoming_notes
+
                     cache_data["unlock_ssot_request"] = bool(
                         artist_data.get("unlock_ssot_request", False)
                     )
