@@ -1,6 +1,8 @@
 import datetime
 import json
 import os
+import stat
+import sys
 import time
 from pathlib import Path
 import uuid
@@ -68,6 +70,7 @@ class FossaDB(ProjectMethods):
         self.network_base_path = Path(network_base_path).resolve()
         self.database_file_path = self.network_base_path / "fossa.db"
         self.lock_file_path = self.network_base_path / ".fossa.db.lock"
+        self._storage_diagnostic_reported = False
         try:
             if not self.network_base_path.is_dir():
                 raise FileNotFoundError(
@@ -130,6 +133,14 @@ class FossaDB(ProjectMethods):
                 return database
             except (OSError, json.JSONDecodeError) as error:
                 last_error = error
+                if isinstance(error, OSError):
+                    if not self._storage_diagnostic_reported:
+                        print(
+                            "Fossa database storage diagnostic:",
+                            self.DiagnoseDatabaseStorage(),
+                            file=sys.stderr,
+                        )
+                        self._storage_diagnostic_reported = True
                 if attempt < 4:
                     time.sleep((attempt + 1) * 0.05)
         if isinstance(last_error, json.JSONDecodeError):
@@ -173,6 +184,66 @@ class FossaDB(ProjectMethods):
                 if attempt < 4:
                     time.sleep((attempt + 1) * 0.05)
         raise last_error
+
+    def DiagnoseDatabaseStorage(self):
+        """Return a bounded diagnostic snapshot for network-volume failures."""
+        diagnostic = {
+            "network_path": str(self.network_base_path),
+            "database_path": str(self.database_file_path),
+            "lock_path": str(self.lock_file_path),
+            "network_path_is_dir": self.network_base_path.is_dir(),
+            "database_exists": self.database_file_path.exists(),
+            "database_is_file": self.database_file_path.is_file(),
+        }
+        try:
+            database_stat = self.database_file_path.stat()
+            diagnostic.update({
+                "database_size": database_stat.st_size,
+                "database_mode": oct(stat.S_IMODE(database_stat.st_mode)),
+                "database_uid": database_stat.st_uid,
+                "database_gid": database_stat.st_gid,
+            })
+        except OSError as error:
+            diagnostic["database_stat_error"] = (
+                f"{type(error).__name__}: errno={error.errno} {error}"
+            )
+
+        try:
+            with self.database_file_path.open("rb") as file:
+                diagnostic["database_read_bytes"] = len(file.read(4096))
+        except OSError as error:
+            diagnostic["database_read_error"] = (
+                f"{type(error).__name__}: errno={error.errno} {error}"
+            )
+
+        try:
+            with self._OpenDatabaseLock() as lock_file:
+                file_lock.flock(lock_file.fileno(), file_lock.LOCK_EX)
+                try:
+                    diagnostic["lock_test"] = "ok"
+                finally:
+                    file_lock.flock(lock_file.fileno(), file_lock.LOCK_UN)
+        except OSError as error:
+            diagnostic["lock_test_error"] = (
+                f"{type(error).__name__}: errno={error.errno} {error}"
+            )
+
+        temporary_path = self.database_file_path.with_name(
+            f".fossa.db.{uuid.uuid4().hex}.diagnostic.tmp"
+        )
+        try:
+            with temporary_path.open("x", encoding="utf-8") as file:
+                file.write("{}")
+                file.flush()
+                os.fsync(file.fileno())
+            diagnostic["temporary_write_test"] = "ok"
+        except OSError as error:
+            diagnostic["temporary_write_error"] = (
+                f"{type(error).__name__}: errno={error.errno} {error}"
+            )
+        finally:
+            temporary_path.unlink(missing_ok=True)
+        return diagnostic
 
     def _WriteDatabase(self, database):
         temporary_path = self.database_file_path.with_name(
