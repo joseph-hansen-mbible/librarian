@@ -382,9 +382,22 @@ class Populators:
             ref.locks_treeview.delete(item)
         ref.all_files_item_ids = []
         ref.all_files_detached_item_ids.clear()
+        ref.all_files_paths = {}
+        ref.all_files_metadata = {}
         for row in rows or []:
-            item = ref.locks_treeview.insert("", "end", values=row)
+            if isinstance(row, dict):
+                values = row["values"]
+                filepath = row["filepath"]
+                metadata = row["metadata"]
+            else:
+                values = row
+                filepath = ""
+                metadata = {}
+            item = ref.locks_treeview.insert("", "end", values=values)
             ref.all_files_item_ids.append(item)
+            if filepath:
+                ref.all_files_paths[item] = filepath
+                ref.all_files_metadata[item] = metadata
         Filters.filter_all_files_treeview(ref)
 
     @staticmethod

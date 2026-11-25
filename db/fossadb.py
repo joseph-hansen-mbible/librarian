@@ -17,9 +17,50 @@ class FossaDB(ProjectMethods):
     REQUIRED_PROJECT_APPROVALS = ProjectStructure.REQUIRED_APPROVALS
     
     def ResetStrandedCheckouts(self):
-        # TODO: Fix stranded Blender files when it happens- which it does, since Blender
-        # loves to crash
-        pass
+        """Discard every artist's current and pending Blender checkout."""
+        with self.lock_file_path.open(mode="a+", encoding="utf-8") as lock_file:
+            file_lock.flock(lock_file.fileno(), file_lock.LOCK_EX)
+            try:
+                database = self._ReadDatabase()
+                cleared_artists = []
+
+                for artist, artist_data in database.items():
+                    if artist == "__blender_files__":
+                        continue
+                    if not isinstance(artist_data, dict):
+                        continue
+
+                    had_current_file = bool(artist_data.get("current_file"))
+                    had_pending_file = bool(
+                        artist_data.get("pending_create_file")
+                    )
+                    artist_data.pop("current_file", None)
+                    artist_data.pop("pending_create_file", None)
+                    artist_data.pop("unlock_ssot_request", None)
+                    artist_data.pop("ssot_unlock_count", None)
+                    artist_data.pop("current_file_checklist", None)
+
+                    if had_current_file or had_pending_file:
+                        cleared_artists.append(str(artist))
+
+                files = database.get("__blender_files__", {})
+                if isinstance(files, dict):
+                    for file_record in files.values():
+                        if not isinstance(file_record, dict):
+                            continue
+                        file_record.pop("unlock_requested", None)
+                        file_record.pop("unlock_approval_names", None)
+                        file_record.pop("unlock_approvals", None)
+                        file_record.pop("unlock_ssot_ready", None)
+
+                self._WriteDatabase(database)
+
+                for cache_path in self.network_base_path.rglob("cache.flf"):
+                    cache_path.unlink(missing_ok=True)
+
+                return cleared_artists
+            finally:
+                file_lock.flock(lock_file.fileno(), file_lock.LOCK_UN)
 
     def __init__(self, network_base_path):
         self.network_base_path = Path(network_base_path).resolve()
@@ -190,18 +231,15 @@ class FossaDB(ProjectMethods):
                     )
 
                 current_file = artist_data.get("current_file")
-                if isinstance(current_file, str) and current_file:
-                    # TODO: if we hit this point, it's possible that a check-in failed
-                    # and we have a hanging checked-out file not actually open in Blender
-                    # so we need to check-in, then check-out, instead of raising an error
-                    raise RuntimeError(
-                        f"{artist!r} already has a checked-out Blender file"
-                    )
-                    
                 if current_file not in (None, ""):
-                    raise ValueError(
-                        f"Current file for {artist!r} must be a string"
-                    )
+                    if not isinstance(current_file, str):
+                        raise ValueError(
+                            f"Current file for {artist!r} must be a string"
+                        )
+                    # A crashed or interrupted Blender session can leave this state
+                    # behind. Release the stale checkout so the requested file can
+                    # proceed through the normal pending-creation/checkout flow.
+                    artist_data["current_file"] = ""
 
                 pending_file = artist_data.get("pending_create_file")
                 if pending_file not in (None, "", requested_path):
@@ -231,6 +269,135 @@ class FossaDB(ProjectMethods):
                 del artist_data["pending_create_file"]
                 self._WriteDatabase(database)
                 return True
+            finally:
+                file_lock.flock(lock_file.fileno(), file_lock.LOCK_UN)
+
+    def UpdateBlenderFileChecklist(self, artist, filepath, checklist):
+        artist = str(artist)
+        if not artist:
+            raise ValueError("Artist must not be empty")
+        requested_path = str(Path(filepath).expanduser().resolve())
+        if not isinstance(checklist, dict):
+            raise ValueError("Blender file checklist must be a JSON object")
+        if any(
+            not isinstance(key, str) or not isinstance(value, bool)
+            for key, value in checklist.items()
+        ):
+            raise ValueError(
+                "Blender file checklist keys must be text and values must be booleans"
+            )
+
+        with self.lock_file_path.open(mode="a+", encoding="utf-8") as lock_file:
+            file_lock.flock(lock_file.fileno(), file_lock.LOCK_EX)
+            try:
+                database = self._ReadDatabase()
+                files = database.setdefault("__blender_files__", {})
+                if not isinstance(files, dict):
+                    raise ValueError("Blender file index must be a JSON object")
+                file_record = files.get(requested_path, {})
+                if not isinstance(file_record, dict):
+                    raise ValueError(
+                        f"Blender file metadata for {requested_path!r} "
+                        "must be a JSON object"
+                    )
+                file_record["checklist"] = dict(checklist)
+                files[requested_path] = file_record
+
+                artist_data = database.get(artist)
+                if isinstance(artist_data, dict):
+                    artist_data["current_file_checklist"] = dict(checklist)
+                self._WriteDatabase(database)
+                return True
+            finally:
+                file_lock.flock(lock_file.fileno(), file_lock.LOCK_UN)
+
+    def RequestSSOTUnlock(self, artist, filepath):
+        artist = str(artist)
+        requested_path = str(Path(filepath).expanduser().resolve())
+        if not artist:
+            raise ValueError("Artist must not be empty")
+
+        with self.lock_file_path.open(mode="a+", encoding="utf-8") as lock_file:
+            file_lock.flock(lock_file.fileno(), file_lock.LOCK_EX)
+            try:
+                database = self._ReadDatabase()
+                artist_data = database.get(artist)
+                if not isinstance(artist_data, dict):
+                    raise ValueError(f"Unknown artist {artist!r}")
+                if artist_data.get("current_file") != requested_path:
+                    raise ValueError("Only the checked-out artist can request unlock")
+
+                files = database.setdefault("__blender_files__", {})
+                if not isinstance(files, dict):
+                    raise ValueError("Blender file index must be a JSON object")
+                file_record = files.get(requested_path, {})
+                if not isinstance(file_record, dict):
+                    file_record = {}
+                checklist = file_record.get("checklist", {})
+                if not isinstance(checklist, dict) or not checklist:
+                    raise ValueError("This Blender file has no SSOT checklist")
+                if any(value is not True for value in checklist.values()):
+                    raise ValueError("The SSOT checklist must be complete")
+
+                file_record["unlock_approval_names"] = []
+                file_record["unlock_approvals"] = 0
+                file_record["unlock_requested"] = True
+                files[requested_path] = file_record
+                artist_data["unlock_ssot_request"] = True
+                artist_data["ssot_unlock_count"] = 0
+                database[artist] = artist_data
+                self._WriteDatabase(database)
+                return True
+            finally:
+                file_lock.flock(lock_file.fileno(), file_lock.LOCK_UN)
+
+    def ApproveSSOTUnlock(self, artist, filepath, reviewer):
+        artist = str(artist)
+        reviewer = str(reviewer)
+        requested_path = str(Path(filepath).expanduser().resolve())
+        if not reviewer:
+            raise ValueError("Reviewer must not be empty")
+        if reviewer == artist:
+            raise ValueError("The checked-out artist cannot approve their own unlock")
+
+        with self.lock_file_path.open(mode="a+", encoding="utf-8") as lock_file:
+            file_lock.flock(lock_file.fileno(), file_lock.LOCK_EX)
+            try:
+                database = self._ReadDatabase()
+                files = database.setdefault("__blender_files__", {})
+                if not isinstance(files, dict):
+                    raise ValueError("Blender file index must be a JSON object")
+                file_record = files.get(requested_path, {})
+                if not isinstance(file_record, dict):
+                    raise ValueError("Unknown Blender file")
+                if not file_record.get("unlock_requested", False):
+                    raise ValueError("No SSOT unlock has been requested")
+
+                approvals = file_record.get("unlock_approval_names", [])
+                if not isinstance(approvals, list):
+                    approvals = []
+                approvals = [name for name in approvals if isinstance(name, str)]
+                if len(approvals) >= self.REQUIRED_PROJECT_APPROVALS:
+                    raise ValueError("This SSOT unlock already has two approvals")
+                if reviewer in approvals:
+                    raise ValueError(f"{reviewer} has already approved this unlock")
+
+                approvals.append(reviewer)
+                approvals = approvals[:self.REQUIRED_PROJECT_APPROVALS]
+                approval_count = len(approvals)
+                file_record["unlock_approval_names"] = approvals
+                file_record["unlock_approvals"] = approval_count
+                if approval_count >= self.REQUIRED_PROJECT_APPROVALS:
+                    file_record["unlock_ssot_ready"] = True
+                    file_record["status"] = "ssot"
+                files[requested_path] = file_record
+
+                owner_data = database.get(artist)
+                if isinstance(owner_data, dict):
+                    owner_data["ssot_unlock_count"] = approval_count
+                    database[artist] = owner_data
+                self._WriteDatabase(database)
+                return approval_count
             finally:
                 file_lock.flock(lock_file.fileno(), file_lock.LOCK_UN)
 
