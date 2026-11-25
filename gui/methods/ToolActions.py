@@ -116,12 +116,21 @@ def _SelectedLockFile(ref):
 def FossaUpdateSSOTButtons(ref):
     filepath, metadata = _SelectedLockFile(ref)
     has_selection = filepath is not None
+    status = str(metadata.get("status", "")).casefold()
+    is_ssot = has_selection and status == "ssot"
     ref.view_ssot_checklist_button.configure(
         state="normal" if has_selection else "disabled"
     )
-    ref.request_unlock_ssot_button.configure(
-        state="normal" if has_selection else "disabled"
-    )
+    if is_ssot:
+        ref.request_unlock_ssot_button.configure(state="normal")
+        if not ref.request_unlock_ssot_button.winfo_manager():
+            ref.request_unlock_ssot_button.pack(
+                pady=5,
+                fill="x",
+                expand=True,
+            )
+    else:
+        ref.request_unlock_ssot_button.pack_forget()
 
 def FossaOpenSSOTChecklist(ref):
     filepath, initial_metadata = _SelectedLockFile(ref)
@@ -143,6 +152,11 @@ def FossaOpenSSOTChecklist(ref):
     checklist = file_metadata.get("checklist", {})
     if not isinstance(checklist, dict):
         checklist = {}
+    is_ssot = str(file_metadata.get("status", "")).casefold() == "ssot"
+    checklist_complete = bool(checklist) and all(
+        value is True for value in checklist.values()
+    )
+    show_approval_controls = is_ssot and checklist_complete
 
     owner = None
     for artist, artist_data in snapshot.items():
@@ -191,24 +205,6 @@ def FossaOpenSSOTChecklist(ref):
             text=str(item),
             variable=variable,
         ).pack(anchor="w", padx=5, pady=2)
-
-    approval_frame = ttk.LabelFrame(
-        popup,
-        text="SSOT Unlock Approvals",
-    )
-    approval_frame.pack(fill="x", padx=10, pady=(0, 10))
-
-    approvals = file_metadata.get("unlock_approval_names", [])
-    if not isinstance(approvals, list):
-        approvals = []
-    approvals = [name for name in approvals if isinstance(name, str)]
-    approval_label = ttk.Label(
-        approval_frame,
-        text=f"{len(approvals)}/{ref.database.REQUIRED_PROJECT_APPROVALS} "
-        f"approvals"
-        + (f" ({', '.join(approvals)})" if approvals else ""),
-    )
-    approval_label.pack(anchor="w", padx=5, pady=5)
 
     button_frame = ttk.Frame(popup)
     button_frame.pack(fill="x", padx=10, pady=(0, 10))
@@ -280,16 +276,40 @@ def FossaOpenSSOTChecklist(ref):
         text="Save Checklist",
         command=save_checklist,
     ).pack(side="left")
-    ttk.Button(
-        button_frame,
-        text="Request Unlock",
-        command=request_unlock,
-    ).pack(side="left", padx=(5, 0))
-    ttk.Button(
-        button_frame,
-        text="Approve Unlock",
-        command=approve_unlock,
-    ).pack(side="left", padx=(5, 0))
+    if show_approval_controls:
+        approval_frame = ttk.LabelFrame(
+            popup,
+            text="SSOT Unlock Approvals",
+        )
+        approval_frame.pack(
+            fill="x",
+            padx=10,
+            pady=(0, 10),
+            before=button_frame,
+        )
+
+        approvals = file_metadata.get("unlock_approval_names", [])
+        if not isinstance(approvals, list):
+            approvals = []
+        approvals = [name for name in approvals if isinstance(name, str)]
+        approval_label = ttk.Label(
+            approval_frame,
+            text=f"{len(approvals)}/{ref.database.REQUIRED_PROJECT_APPROVALS} "
+            f"approvals"
+            + (f" ({', '.join(approvals)})" if approvals else ""),
+        )
+        approval_label.pack(anchor="w", padx=5, pady=5)
+
+        ttk.Button(
+            button_frame,
+            text="Request Unlock",
+            command=request_unlock,
+        ).pack(side="left", padx=(5, 0))
+        ttk.Button(
+            button_frame,
+            text="Approve Unlock",
+            command=approve_unlock,
+        ).pack(side="left", padx=(5, 0))
 
 def _RestartFossa(ref):
     if not messagebox.askyesno(
@@ -362,46 +382,66 @@ def _FixStrandedCheckouts(ref):
     ):
         return
 
-    cleanup_errors = []
-    try:
-        BlenderSessionMonitor.StopAll()
-    except Exception as error:
-        cleanup_errors.append(f"Could not stop Blender session monitors: {error}")
-    try:
-        core.FossaWorker.DestroyAll()
-    except Exception as error:
-        cleanup_errors.append(f"Could not stop Fossa workers: {error}")
+    if getattr(ref, "_fix_stranded_checkouts_running", False):
+        return
+    ref._fix_stranded_checkouts_running = True
+    ref.main_window.configure(cursor="watch")
 
-    try:
-        snapshot = ref.database.GetDatabaseSnapshot()
-        artists = [
-            str(artist)
-            for artist, artist_data in snapshot.items()
-            if artist != "__blender_files__" and isinstance(artist_data, dict)
-        ]
-        for artist in artists:
-            BlenderSessionCachePath(artist).unlink(missing_ok=True)
+    def cleanup():
+        try:
+            BlenderSessionMonitor.StopAll()
+            core.FossaWorker.DestroyAll()
+            snapshot = ref.database.GetDatabaseSnapshot()
+            artists = [
+                str(artist)
+                for artist, artist_data in snapshot.items()
+                if artist not in {"__projects__", "__blender_files__"}
+                and isinstance(artist_data, dict)
+            ]
+            for artist in artists:
+                BlenderSessionCachePath(artist).unlink(missing_ok=True)
+            cleared_artists = ref.database.ResetStrandedCheckouts()
+            result = (len(cleared_artists), None)
+        except Exception as error:
+            result = (None, error)
 
-        cleared_artists = ref.database.ResetStrandedCheckouts()
-        ref._pending_blender_creation = None
-        ref.main_window.after(0, lambda: _Helpers.FossaUpdateMainFileLists(ref, schedule=False))
-        ref.command_execute_button.configure(state="normal")
+        def finish():
+            ref._fix_stranded_checkouts_running = False
+            ref.main_window.configure(cursor="")
+            if result[1] is not None:
+                messagebox.showerror(
+                    "Fix Stranded Checkouts",
+                    str(result[1]),
+                    parent=ref.main_window,
+                )
+                return
 
-        if cleanup_errors:
-            raise RuntimeError(
-                "Stranded checkouts were cleared with cleanup warnings:\n"
-                + "\n".join(cleanup_errors)
+            ref._pending_blender_creation = None
+            ref.command_execute_button.configure(state="normal")
+            _Helpers.FossaUpdateMainFileLists(ref, schedule=False)
+            messagebox.showinfo(
+                "Fix Stranded Checkouts",
+                f"Cleared {result[0]} checked-out or pending artist state(s).",
+                parent=ref.main_window,
             )
-        count = len(cleared_artists)
-        messagebox.showinfo(
-            "Fix Stranded Checkouts",
-            f"Cleared {count} checked-out or pending artist state(s).",
-            parent=ref.main_window,
-        )
-    except Exception as error:
+
+        try:
+            ref.main_window.after(0, finish)
+        except (RuntimeError, tk.TclError):
+            ref._fix_stranded_checkouts_running = False
+
+    try:
+        threading.Thread(
+            target=cleanup,
+            name="Fossa-Stranded-Checkout-Cleanup",
+            daemon=True,
+        ).start()
+    except RuntimeError as error:
+        ref._fix_stranded_checkouts_running = False
+        ref.main_window.configure(cursor="")
         messagebox.showerror(
             "Fix Stranded Checkouts",
-            str(error),
+            f"Could not start checkout cleanup: {error}",
             parent=ref.main_window,
         )
 
@@ -455,4 +495,3 @@ def FossaMenus(ref):
             label="Tools",
             menu=tools_menu
         )
-

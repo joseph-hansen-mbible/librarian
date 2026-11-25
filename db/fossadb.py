@@ -55,8 +55,9 @@ class FossaDB(ProjectMethods):
 
                 self._WriteDatabase(database)
 
-                for cache_path in self.network_base_path.rglob("cache.flf"):
-                    cache_path.unlink(missing_ok=True)
+                (self.network_base_path / "fossa" / "cache.flf").unlink(
+                    missing_ok=True
+                )
 
                 return cleared_artists
             finally:

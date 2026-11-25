@@ -12,7 +12,6 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from gui.methods import Helpers as _Helpers
 from objects.Project import Project, Status
 from objects.BlenderFile import BlenderFile, BlenderFileStatus
 from whoami import Who
@@ -111,6 +110,9 @@ def FossaUpdateMainFileLists(ref, schedule):
     Populators.populate_current_files_table(ref, rows)
     Populators.populate_locks_treeview(ref, all_files_rows)
     Populators.populate_recent_files_treeview(ref, recent_files_rows)
+    from gui.methods.ToolActions import FossaUpdateSSOTButtons
+
+    FossaUpdateSSOTButtons(ref)
     FossaUpdateRecentFileOpenButton(ref)
     if schedule and not getattr(ref, "_close_application_started", False):
         ref.main_file_lists_timer = ref.main_window.after(
@@ -186,11 +188,25 @@ def _BuildBlenderFileListRows(ref, database):
             scene = ""
         if not scene and Path(filepath).parent.name.startswith("Scene "):
             scene = Path(filepath).parent.name.removeprefix("Scene ")
+        details = []
+        if scene:
+            details.append(f"Scene {scene}")
+        for field, label in (
+            ("shot", "Shot"),
+            ("character", "Character"),
+            ("setting", "Setting"),
+            ("prop", "Prop"),
+        ):
+            value = metadata.get(field)
+            if isinstance(value, str) and value:
+                details.append(f"{label} {value}")
 
         checklist = metadata.get("checklist", {})
         if not isinstance(checklist, dict):
             checklist = {}
         checklist_count = sum(value is True for value in checklist.values())
+        status = _StringValue(metadata.get("status")).casefold()
+        is_ssot = status == "ssot"
         version = metadata.get("version", "")
         if isinstance(version, int):
             version = f"{version:02d}"
@@ -201,13 +217,16 @@ def _BuildBlenderFileListRows(ref, database):
                 "metadata": metadata,
                 "values": (
                     project_name,
-                    scene,
-                    _StringValue(metadata.get("shot")),
+                    ", ".join(details),
                     _StringValue(version),
                     _StringValue(metadata.get("action")),
                     _StringValue(metadata.get("status")),
-                    f"{checklist_count}/{len(checklist)}",
-                    _StringValue(metadata.get("unlock_approvals", 0)),
+                    ""
+                    if is_ssot
+                    else f"{checklist_count}/{len(checklist)}",
+                    _StringValue(metadata.get("unlock_approvals", 0))
+                    if is_ssot
+                    else "",
                 ),
             }
         )
@@ -317,6 +336,8 @@ def FossaUpdateRecentFileOpenButton(ref):
     )
 
 def FossaOpenSelectedRecentFile(ref):
+    from gui.methods.BlenderActions import _CheckoutAndOpenBlenderFile
+
     selection = ref.recent_files_treeview.selection()
     if not selection:
         return False
@@ -345,7 +366,7 @@ def FossaOpenSelectedRecentFile(ref):
             if project is not None
             else ref.get_worker_network_base_path()
         )
-        return _Helpers._CheckoutAndOpenBlenderFile(
+        return _CheckoutAndOpenBlenderFile(
             ref,
             artist,
             filepath,
@@ -360,4 +381,3 @@ def FossaOpenSelectedRecentFile(ref):
         )
         FossaUpdateMainFileLists(ref, schedule=False)
         return False
-

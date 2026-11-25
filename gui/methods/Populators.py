@@ -349,41 +349,68 @@ class Populators:
     
     @staticmethod
     def populate_recent_files_treeview(ref, rows=None):
-        selection = ref.recent_files_treeview.selection()
-        for item in ref.recent_files_treeview.get_children(""):
-            ref.recent_files_treeview.delete(item)
+        treeview = ref.recent_files_treeview
+        selection = treeview.selection()
+        focused_item = treeview.focus()
+        yview = treeview.yview()
+        widget_focus = treeview.focus_get()
+        if widget_focus is None:
+            had_widget_focus = False
+        else:
+            had_widget_focus = widget_focus == treeview
         ref.recent_file_paths = {}
         ref.recent_file_checkout_owners = {}
         ref.recent_file_metadata = {}
         visible_items = set()
-        for row in rows or []:
+        for index, row in enumerate(rows or []):
             filepath = row["filepath"]
             values = row["values"]
             item_id = hashlib.sha256(
                 f"{values[1]}\0{filepath}".encode("utf-8")
             ).hexdigest()
-            ref.recent_files_treeview.insert(
-                "",
-                "end",
-                iid=item_id,
-                values=values,
-            )
+            if treeview.exists(item_id):
+                treeview.item(item_id, values=values)
+            else:
+                treeview.insert("", "end", iid=item_id, values=values)
             visible_items.add(item_id)
             ref.recent_file_paths[item_id] = filepath
             ref.recent_file_checkout_owners[item_id] = row["checked_out_by"]
             ref.recent_file_metadata[item_id] = row["metadata"]
+            treeview.move(item_id, "", index)
+        for item_id in treeview.get_children(""):
+            if item_id not in visible_items:
+                treeview.delete(item_id)
         if selection and selection[0] in visible_items:
-            ref.recent_files_treeview.selection_set(selection[0])
-            ref.recent_files_treeview.focus(selection[0])
+            treeview.selection_set(selection)
+        if focused_item in visible_items:
+            treeview.focus(focused_item)
+        if yview:
+            treeview.yview_moveto(yview[0])
+        if had_widget_focus:
+            treeview.focus_set()
     
     @staticmethod
     def populate_locks_treeview(ref, rows=None):
-        for item in ref.locks_treeview.get_children(""):
-            ref.locks_treeview.delete(item)
-        ref.all_files_item_ids = []
-        ref.all_files_detached_item_ids.clear()
+        treeview = ref.locks_treeview
+        selection = treeview.selection()
+        selected_paths = {
+            ref.all_files_paths[item_id]
+            for item_id in selection
+            if item_id in getattr(ref, "all_files_paths", {})
+        }
+        focused_item = treeview.focus()
+        focused_path = getattr(ref, "all_files_paths", {}).get(focused_item)
+        yview = treeview.yview()
+        widget_focus = treeview.focus_get()
+        had_widget_focus = widget_focus == treeview
+
+        if not hasattr(ref, "all_files_item_ids"):
+            ref.all_files_item_ids = []
+        if not hasattr(ref, "all_files_detached_item_ids"):
+            ref.all_files_detached_item_ids = set()
         ref.all_files_paths = {}
         ref.all_files_metadata = {}
+        visible_items = set()
         for row in rows or []:
             if isinstance(row, dict):
                 values = row["values"]
@@ -393,12 +420,48 @@ class Populators:
                 values = row
                 filepath = ""
                 metadata = {}
-            item = ref.locks_treeview.insert("", "end", values=values)
-            ref.all_files_item_ids.append(item)
+            item = (
+                hashlib.sha256(filepath.encode("utf-8")).hexdigest()
+                if filepath
+                else hashlib.sha256(repr(values).encode("utf-8")).hexdigest()
+            )
+            if treeview.exists(item):
+                treeview.item(item, values=values)
+            else:
+                treeview.insert("", "end", iid=item, values=values)
+            visible_items.add(item)
+            if item not in ref.all_files_item_ids:
+                ref.all_files_item_ids.append(item)
             if filepath:
                 ref.all_files_paths[item] = filepath
                 ref.all_files_metadata[item] = metadata
+        for item_id in tuple(ref.all_files_item_ids):
+            if item_id not in visible_items:
+                if treeview.exists(item_id):
+                    treeview.delete(item_id)
+                ref.all_files_detached_item_ids.discard(item_id)
+                ref.all_files_item_ids.remove(item_id)
         Filters.filter_all_files_treeview(ref)
+        selected_items = [
+            item_id
+            for item_id in ref.all_files_item_ids
+            if ref.all_files_paths.get(item_id) in selected_paths
+            and item_id not in ref.all_files_detached_item_ids
+        ]
+        if selected_items:
+            treeview.selection_set(selected_items)
+        focused_items = [
+            item_id
+            for item_id in ref.all_files_item_ids
+            if ref.all_files_paths.get(item_id) == focused_path
+            and item_id not in ref.all_files_detached_item_ids
+        ]
+        if focused_items:
+            treeview.focus(focused_items[0])
+        if yview:
+            treeview.yview_moveto(yview[0])
+        if had_widget_focus:
+            treeview.focus_set()
 
     @staticmethod
     def update_status_bar(ref):
