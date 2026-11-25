@@ -115,6 +115,8 @@ def _SelectedLockFile(ref):
 
 def FossaUpdateSSOTButtons(ref):
     filepath, metadata = _SelectedLockFile(ref)
+    if not isinstance(metadata, dict):
+        metadata = {}
     has_selection = filepath is not None
     status = str(metadata.get("status", "")).casefold()
     is_ssot = has_selection and status == "ssot"
