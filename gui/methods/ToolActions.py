@@ -118,7 +118,10 @@ def FossaUpdateSSOTButtons(ref):
     if not isinstance(metadata, dict):
         metadata = {}
     has_selection = filepath is not None
-    status = str(metadata.get("status", "")).casefold()
+    try:
+        status = str(metadata.get("status", "")).casefold()
+    except:
+        status = "wip"
     is_ssot = has_selection and status == "ssot"
     ref.view_ssot_checklist_button.configure(
         state="normal" if has_selection else "disabled"
