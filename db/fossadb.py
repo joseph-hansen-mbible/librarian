@@ -619,16 +619,6 @@ class FossaDB(ProjectMethods):
                         f"Cache data for {artist!r} must be a JSON object"
                     )
 
-                incoming_current_file = cache_data.get("current_file", "")
-                existing_current_file = artist_data.get("current_file", "")
-                if (
-                    isinstance(incoming_current_file, str)
-                    and incoming_current_file
-                    and incoming_current_file != existing_current_file
-                ):
-                    network_cache_path.unlink(missing_ok=True)
-                    return True
-
                 existing_recent_files = artist_data.get("recent_files", [])
                 if not isinstance(existing_recent_files, list):
                     raise ValueError(
