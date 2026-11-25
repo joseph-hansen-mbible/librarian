@@ -651,6 +651,46 @@ class FossaDB(ProjectMethods):
                         f"Cache data for {artist!r} must be a JSON object"
                     )
 
+                if cache_data.get("blender_open") is False:
+                    existing_checklist = artist_data.get(
+                        "current_file_checklist",
+                        {},
+                    )
+                    incoming_checklist = cache_data.get(
+                        "current_file_checklist",
+                        {},
+                    )
+                    if not isinstance(incoming_checklist, dict):
+                        incoming_checklist = {}
+                    if not incoming_checklist and isinstance(existing_checklist, dict):
+                        incoming_checklist = existing_checklist
+                    cache_data["current_file_checklist"] = dict(
+                        incoming_checklist
+                    )
+
+                    incoming_notes = cache_data.get(
+                        "current_file_notes",
+                        "",
+                    )
+                    if not isinstance(incoming_notes, str):
+                        incoming_notes = ""
+                    if not incoming_notes:
+                        incoming_notes = artist_data.get(
+                            "current_file_notes",
+                            "",
+                        )
+                    if not isinstance(incoming_notes, str):
+                        incoming_notes = ""
+                    cache_data["current_file_notes"] = incoming_notes
+
+                    cache_data["unlock_ssot_request"] = bool(
+                        artist_data.get("unlock_ssot_request", False)
+                    )
+                    unlock_count = artist_data.get("ssot_unlock_count", 0)
+                    if not isinstance(unlock_count, int):
+                        unlock_count = 0
+                    cache_data["ssot_unlock_count"] = unlock_count
+
                 increment_from = str(cache_data.get("increment_from", "") or "")
                 increment_to = str(cache_data.get("increment_to", "") or "")
                 if increment_from or increment_to:

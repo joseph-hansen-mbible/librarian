@@ -250,6 +250,18 @@ class BlenderSessionMonitor:
                 worker.Destroy()
             return accepted
         except Exception as error:
+            expected_conflict = any(
+                phrase in str(error).casefold()
+                for phrase in (
+                    "cache role",
+                    "database is busy",
+                    "network cache",
+                )
+            )
+            if expected_conflict:
+                if worker is not None and not worker._closed:
+                    worker.Destroy()
+                return False
             self._ReportFailure(f"failed to forward Blender cache: {error}")
             if worker is not None and not worker._closed:
                 worker.Destroy()
