@@ -78,7 +78,7 @@ class ProjectMethods:
             raise ValueError(f"Unknown project status {status!r}")
         ProjectStructure.ValidateProjectCode(project_code, allow_empty=False)
 
-        with self.lock_file_path.open(mode="a+", encoding="utf-8") as lock_file:
+        with self._OpenDatabaseLock() as lock_file:
             file_lock.flock(lock_file.fileno(), file_lock.LOCK_EX)
             try:
                 database = self._ReadDatabase()
@@ -143,7 +143,7 @@ class ProjectMethods:
             allow_empty=False,
         )
 
-        with self.lock_file_path.open(mode="a+", encoding="utf-8") as lock_file:
+        with self._OpenDatabaseLock() as lock_file:
             file_lock.flock(lock_file.fileno(), file_lock.LOCK_EX)
             try:
                 database = self._ReadDatabase()
@@ -312,7 +312,7 @@ class ProjectMethods:
         ):
             raise ValueError("Invalid project change resolution")
 
-        with self.lock_file_path.open(mode="a+", encoding="utf-8") as lock_file:
+        with self._OpenDatabaseLock() as lock_file:
             file_lock.flock(lock_file.fileno(), file_lock.LOCK_EX)
             try:
                 database = self._ReadDatabase()
@@ -400,7 +400,7 @@ class ProjectMethods:
         ):
             raise ValueError("Project, request, and requester IDs must be non-empty")
 
-        with self.lock_file_path.open(mode="a+", encoding="utf-8") as lock_file:
+        with self._OpenDatabaseLock() as lock_file:
             file_lock.flock(lock_file.fileno(), file_lock.LOCK_EX)
             try:
                 database = self._ReadDatabase()
@@ -440,7 +440,7 @@ class ProjectMethods:
         ):
             raise ValueError("Project, request, and requester IDs must be non-empty")
 
-        with self.lock_file_path.open(mode="a+", encoding="utf-8") as lock_file:
+        with self._OpenDatabaseLock() as lock_file:
             file_lock.flock(lock_file.fileno(), file_lock.LOCK_EX)
             try:
                 database = self._ReadDatabase()

@@ -1,6 +1,7 @@
 import datetime
 import json
 import os
+import time
 from pathlib import Path
 import uuid
 
@@ -18,7 +19,7 @@ class FossaDB(ProjectMethods):
     
     def ResetStrandedCheckouts(self):
         """Discard every artist's current and pending Blender checkout."""
-        with self.lock_file_path.open(mode="a+", encoding="utf-8") as lock_file:
+        with self._OpenDatabaseLock() as lock_file:
             file_lock.flock(lock_file.fileno(), file_lock.LOCK_EX)
             try:
                 database = self._ReadDatabase()
@@ -105,7 +106,7 @@ class FossaDB(ProjectMethods):
                     pass
 
     def _EnsureDatabaseFile(self):
-        with self.lock_file_path.open(mode="a+", encoding="utf-8") as lock_file:
+        with self._OpenDatabaseLock() as lock_file:
             file_lock.flock(lock_file.fileno(), file_lock.LOCK_EX)
             try:
                 if self.database_file_path.exists():
@@ -119,11 +120,21 @@ class FossaDB(ProjectMethods):
         if not self.database_file_path.exists():
             return {}
 
-        with self.database_file_path.open(mode="r", encoding="utf-8") as file:
-            database = json.load(file)
-        if not isinstance(database, dict):
-            raise ValueError("Fossa database must be a JSON object")
-        return database
+        last_error = OSError("Fossa database read retry exhausted")
+        for attempt in range(5):
+            try:
+                with self.database_file_path.open(mode="r", encoding="utf-8") as file:
+                    database = json.load(file)
+                if not isinstance(database, dict):
+                    raise ValueError("Fossa database must be a JSON object")
+                return database
+            except (OSError, json.JSONDecodeError) as error:
+                last_error = error
+                if attempt < 4:
+                    time.sleep((attempt + 1) * 0.05)
+        if isinstance(last_error, json.JSONDecodeError):
+            raise last_error
+        raise last_error
 
     def IsConnected(self):
         if not self.network_base_path.is_dir() or not self.database_file_path.is_file():
@@ -137,23 +148,53 @@ class FossaDB(ProjectMethods):
 
     def GetDatabaseSnapshot(self):
         """Return a consistent snapshot of the database JSON."""
-        with self.lock_file_path.open(mode="a+", encoding="utf-8") as lock_file:
-            file_lock.flock(lock_file.fileno(), file_lock.LOCK_EX)
+        last_error = OSError("Fossa database lock retry exhausted")
+        for attempt in range(5):
             try:
-                return self._ReadDatabase()
-            finally:
-                file_lock.flock(lock_file.fileno(), file_lock.LOCK_UN)
+                with self._OpenDatabaseLock() as lock_file:
+                    file_lock.flock(lock_file.fileno(), file_lock.LOCK_EX)
+                    try:
+                        return self._ReadDatabase()
+                    finally:
+                        file_lock.flock(lock_file.fileno(), file_lock.LOCK_UN)
+            except OSError as error:
+                last_error = error
+                if attempt < 4:
+                    time.sleep((attempt + 1) * 0.05)
+        raise last_error
+
+    def _OpenDatabaseLock(self):
+        last_error = OSError("Fossa database lock open retry exhausted")
+        for attempt in range(5):
+            try:
+                return self.lock_file_path.open(mode="a+", encoding="utf-8")
+            except OSError as error:
+                last_error = error
+                if attempt < 4:
+                    time.sleep((attempt + 1) * 0.05)
+        raise last_error
 
     def _WriteDatabase(self, database):
         temporary_path = self.database_file_path.with_name(
             f".fossa.db.{uuid.uuid4().hex}.tmp"
         )
+        last_error = OSError("Fossa database write retry exhausted")
         try:
-            with temporary_path.open(mode="x", encoding="utf-8") as file:
-                json.dump(database, file)
-                file.flush()
-                os.fsync(file.fileno())
-            os.replace(temporary_path, self.database_file_path)
+            for attempt in range(5):
+                try:
+                    with temporary_path.open(mode="x", encoding="utf-8") as file:
+                        json.dump(database, file)
+                        file.flush()
+                        os.fsync(file.fileno())
+                    os.replace(temporary_path, self.database_file_path)
+                    return
+                except OSError as error:
+                    last_error = error
+                    if attempt < 4:
+                        time.sleep((attempt + 1) * 0.05)
+                    else:
+                        break
+            raise last_error
         finally:
             temporary_path.unlink(missing_ok=True)
 
@@ -221,7 +262,7 @@ class FossaDB(ProjectMethods):
             raise ValueError("Filepath must not be empty")
         requested_path = str(Path(filepath).expanduser().resolve())
 
-        with self.lock_file_path.open(mode="a+", encoding="utf-8") as lock_file:
+        with self._OpenDatabaseLock() as lock_file:
             file_lock.flock(lock_file.fileno(), file_lock.LOCK_EX)
             try:
                 database = self._ReadDatabase()
@@ -258,7 +299,7 @@ class FossaDB(ProjectMethods):
         artist = str(artist)
         requested_path = str(Path(filepath).expanduser().resolve())
 
-        with self.lock_file_path.open(mode="a+", encoding="utf-8") as lock_file:
+        with self._OpenDatabaseLock() as lock_file:
             file_lock.flock(lock_file.fileno(), file_lock.LOCK_EX)
             try:
                 database = self._ReadDatabase()
@@ -288,7 +329,7 @@ class FossaDB(ProjectMethods):
                 "Blender file checklist keys must be text and values must be booleans"
             )
 
-        with self.lock_file_path.open(mode="a+", encoding="utf-8") as lock_file:
+        with self._OpenDatabaseLock() as lock_file:
             file_lock.flock(lock_file.fileno(), file_lock.LOCK_EX)
             try:
                 database = self._ReadDatabase()
@@ -320,7 +361,7 @@ class FossaDB(ProjectMethods):
         if not isinstance(notes, str):
             raise ValueError("Blender file notes must be text")
 
-        with self.lock_file_path.open(mode="a+", encoding="utf-8") as lock_file:
+        with self._OpenDatabaseLock() as lock_file:
             file_lock.flock(lock_file.fileno(), file_lock.LOCK_EX)
             try:
                 database = self._ReadDatabase()
@@ -350,7 +391,7 @@ class FossaDB(ProjectMethods):
         if not artist:
             raise ValueError("Artist must not be empty")
 
-        with self.lock_file_path.open(mode="a+", encoding="utf-8") as lock_file:
+        with self._OpenDatabaseLock() as lock_file:
             file_lock.flock(lock_file.fileno(), file_lock.LOCK_EX)
             try:
                 database = self._ReadDatabase()
@@ -396,7 +437,7 @@ class FossaDB(ProjectMethods):
         if reviewer == artist:
             raise ValueError("The checked-out artist cannot reject their own unlock")
 
-        with self.lock_file_path.open(mode="a+", encoding="utf-8") as lock_file:
+        with self._OpenDatabaseLock() as lock_file:
             file_lock.flock(lock_file.fileno(), file_lock.LOCK_EX)
             try:
                 database = self._ReadDatabase()
@@ -453,7 +494,7 @@ class FossaDB(ProjectMethods):
         if reviewer == artist:
             raise ValueError("The checked-out artist cannot approve their own unlock")
 
-        with self.lock_file_path.open(mode="a+", encoding="utf-8") as lock_file:
+        with self._OpenDatabaseLock() as lock_file:
             file_lock.flock(lock_file.fileno(), file_lock.LOCK_EX)
             try:
                 database = self._ReadDatabase()
@@ -520,7 +561,7 @@ class FossaDB(ProjectMethods):
             timespec="seconds"
         )
 
-        with self.lock_file_path.open(mode="a+", encoding="utf-8") as lock_file:
+        with self._OpenDatabaseLock() as lock_file:
             file_lock.flock(lock_file.fileno(), file_lock.LOCK_EX)
             try:
                 database = self._ReadDatabase()
@@ -561,7 +602,7 @@ class FossaDB(ProjectMethods):
         if not str(filepath):
             raise ValueError("Filepath must not be empty")
 
-        with self.lock_file_path.open(mode="a+", encoding="utf-8") as lock_file:
+        with self._OpenDatabaseLock() as lock_file:
             try:
                 file_lock.flock(
                     lock_file.fileno(), file_lock.LOCK_EX | file_lock.LOCK_NB
@@ -626,7 +667,7 @@ class FossaDB(ProjectMethods):
 
     def _TryUpdateFromNetworkCache(self, artist, network_cache_path):
         network_cache_path = Path(network_cache_path)
-        with self.lock_file_path.open(mode="a+", encoding="utf-8") as lock_file:
+        with self._OpenDatabaseLock() as lock_file:
             try:
                 file_lock.flock(
                     lock_file.fileno(), file_lock.LOCK_EX | file_lock.LOCK_NB

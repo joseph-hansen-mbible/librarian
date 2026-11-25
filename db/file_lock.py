@@ -42,4 +42,17 @@ else:
     LOCK_UN = fcntl.LOCK_UN
 
     def flock(file_descriptor, operation):
-        fcntl.flock(file_descriptor, operation)
+        last_error = OSError("Flock retry exhausted")
+        for attempt in range(5):
+            try:
+                fcntl.flock(file_descriptor, operation)
+                return
+            except OSError as error:
+                last_error = error
+                if error.errno not in (errno.EIO, errno.EAGAIN, errno.EACCES):
+                    raise
+                if operation & LOCK_NB and error.errno in (errno.EAGAIN, errno.EACCES):
+                    raise BlockingIOError(errno.EACCES, "file is locked") from error
+                if attempt < 4:
+                    time.sleep((attempt + 1) * 0.05)
+        raise last_error
