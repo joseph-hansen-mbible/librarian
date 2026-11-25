@@ -312,6 +312,38 @@ class FossaDB(ProjectMethods):
             finally:
                 file_lock.flock(lock_file.fileno(), file_lock.LOCK_UN)
 
+    def UpdateBlenderFileNotes(self, artist, filepath, notes):
+        artist = str(artist)
+        requested_path = str(Path(filepath).expanduser().resolve())
+        if not artist:
+            raise ValueError("Artist must not be empty")
+        if not isinstance(notes, str):
+            raise ValueError("Blender file notes must be text")
+
+        with self.lock_file_path.open(mode="a+", encoding="utf-8") as lock_file:
+            file_lock.flock(lock_file.fileno(), file_lock.LOCK_EX)
+            try:
+                database = self._ReadDatabase()
+                files = database.setdefault("__blender_files__", {})
+                if not isinstance(files, dict):
+                    raise ValueError("Blender file index must be a JSON object")
+                file_record = files.get(requested_path)
+                if not isinstance(file_record, dict):
+                    raise ValueError(
+                        f"Blender file metadata for {requested_path!r} "
+                        "must be a JSON object"
+                    )
+                file_record["notes"] = notes
+                files[requested_path] = file_record
+
+                artist_data = database.get(artist)
+                if isinstance(artist_data, dict):
+                    artist_data["current_file_notes"] = notes
+                self._WriteDatabase(database)
+                return True
+            finally:
+                file_lock.flock(lock_file.fileno(), file_lock.LOCK_UN)
+
     def RequestSSOTUnlock(self, artist, filepath):
         artist = str(artist)
         requested_path = str(Path(filepath).expanduser().resolve())
@@ -619,6 +651,62 @@ class FossaDB(ProjectMethods):
                         f"Cache data for {artist!r} must be a JSON object"
                     )
 
+                increment_from = str(cache_data.get("increment_from", "") or "")
+                increment_to = str(cache_data.get("increment_to", "") or "")
+                if increment_from or increment_to:
+                    increment_from = str(
+                        Path(increment_from).expanduser().resolve()
+                    ) if increment_from else ""
+                    increment_to = str(
+                        Path(increment_to).expanduser().resolve()
+                    ) if increment_to else ""
+                    if (
+                        not increment_from
+                        or not increment_to
+                        or increment_from == increment_to
+                        or not Path(increment_to).is_file()
+                    ):
+                        raise ValueError(
+                            "Invalid incremental Blender save cache"
+                        )
+                    if artist_data.get("current_file") != increment_from:
+                        raise ValueError(
+                            "Incremental save no longer matches the active checkout"
+                        )
+
+                    files = database.setdefault("__blender_files__", {})
+                    if not isinstance(files, dict):
+                        raise ValueError(
+                            "Blender file index must be a JSON object"
+                        )
+                    old_record = files.get(increment_from, {})
+                    if not isinstance(old_record, dict):
+                        old_record = {}
+                    new_record = dict(old_record)
+                    checklist = cache_data.get("current_file_checklist", {})
+                    if not isinstance(checklist, dict):
+                        checklist = {}
+                    notes = cache_data.get("current_file_notes", "")
+                    if not isinstance(notes, str):
+                        notes = ""
+                    new_record["checklist"] = dict(checklist)
+                    new_record["notes"] = notes
+                    new_record["version"] = int(
+                        Path(increment_to).stem.rsplit("_", 1)[-1]
+                    ) if Path(increment_to).stem.rsplit("_", 1)[-1].isdigit() else old_record.get("version", 1)
+                    new_record["filepath"] = increment_to
+                    opened_by = new_record.get("last_opened_by_artist", {})
+                    if not isinstance(opened_by, dict):
+                        opened_by = {}
+                    opened_by[artist] = datetime.datetime.now(
+                        datetime.timezone.utc
+                    ).isoformat(timespec="seconds")
+                    new_record["last_opened_by_artist"] = opened_by
+                    files[increment_to] = new_record
+                    artist_data["current_file"] = increment_to
+                    artist_data["current_file_checklist"] = dict(checklist)
+                    artist_data["current_file_notes"] = notes
+
                 existing_recent_files = artist_data.get("recent_files", [])
                 if not isinstance(existing_recent_files, list):
                     raise ValueError(
@@ -638,6 +726,33 @@ class FossaDB(ProjectMethods):
                         recent_files.remove(filepath)
                     recent_files.append(filepath)
                 cache_data["recent_files"] = recent_files
+                if "pending_create_file" in artist_data:
+                    cache_data["pending_create_file"] = artist_data[
+                        "pending_create_file"
+                    ]
+                checklist = cache_data.get("current_file_checklist", {})
+                if not isinstance(checklist, dict):
+                    checklist = {}
+                notes = cache_data.get("current_file_notes", "")
+                if not isinstance(notes, str):
+                    notes = ""
+                current_file = cache_data.get("current_file", "")
+                if isinstance(current_file, str) and current_file:
+                    files = database.setdefault("__blender_files__", {})
+                    if isinstance(files, dict):
+                        file_record = files.get(
+                            str(Path(current_file).expanduser().resolve())
+                        )
+                        if isinstance(file_record, dict):
+                            file_record["checklist"] = dict(checklist)
+                            file_record["notes"] = notes
+                    artist_data["current_file_checklist"] = dict(checklist)
+                    artist_data["current_file_notes"] = notes
+                elif current_file == "":
+                    artist_data["current_file_notes"] = ""
+
+                cache_data.pop("increment_from", None)
+                cache_data.pop("increment_to", None)
                 if "pending_create_file" in artist_data:
                     cache_data["pending_create_file"] = artist_data[
                         "pending_create_file"

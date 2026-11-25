@@ -45,6 +45,9 @@ class LocalCacheData:
         current_file_checklist=None,
         unlock_ssot_request=False,
         ssot_unlock_count=0,
+        current_file_notes="",
+        increment_from="",
+        increment_to="",
     ):
         self.current_file = current_file
         self.recent_files = recent_files if recent_files is not None else []
@@ -55,3 +58,6 @@ class LocalCacheData:
         )
         self.unlock_ssot_request = unlock_ssot_request
         self.ssot_unlock_count = ssot_unlock_count
+        self.current_file_notes = current_file_notes
+        self.increment_from = increment_from
+        self.increment_to = increment_to

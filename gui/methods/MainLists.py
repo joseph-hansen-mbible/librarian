@@ -316,9 +316,20 @@ def FossaUpdateRecentFileOpenButton(ref):
     selection = ref.recent_files_treeview.selection()
     if not selection:
         ref.open_recent_file_button.configure(state="disabled")
+        ref.recent_files_notes_text.configure(state="normal")
+        ref.recent_files_notes_text.delete("1.0", tk.END)
+        ref.recent_files_notes_text.configure(state="disabled")
         return
 
     item_id = selection[0]
+    metadata = getattr(ref, "recent_file_metadata", {}).get(item_id, {})
+    notes = metadata.get("notes", "") if isinstance(metadata, dict) else ""
+    if not isinstance(notes, str):
+        notes = ""
+    ref.recent_files_notes_text.configure(state="normal")
+    ref.recent_files_notes_text.delete("1.0", tk.END)
+    ref.recent_files_notes_text.insert("1.0", notes)
+    ref.recent_files_notes_text.configure(state="disabled")
     filepath = getattr(ref, "recent_file_paths", {}).get(item_id)
     checked_out_by = getattr(
         ref, "recent_file_checkout_owners", {}

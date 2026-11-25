@@ -58,6 +58,12 @@ def WriteInitialBlenderSessionCache(fossa_db, artist, filepath):
         "unlock_approvals",
         artist_data.get("ssot_unlock_count", 0),
     )
+    notes = file_metadata.get(
+        "notes",
+        artist_data.get("current_file_notes", ""),
+    )
+    if not isinstance(notes, str):
+        notes = ""
     if not isinstance(unlock_count, int) or isinstance(unlock_count, bool):
         unlock_count = 0
 
@@ -71,6 +77,12 @@ def WriteInitialBlenderSessionCache(fossa_db, artist, filepath):
             artist_data.get("unlock_ssot_request", False)
         ),
         "ssot_unlock_count": unlock_count,
+        "current_file_notes": notes,
+        "increment_from": "",
+        "increment_to": "",
+        "current_file_notes": notes,
+        "increment_from": "",
+        "increment_to": "",
     }
     cache_path = BlenderSessionCachePath(artist)
     cache_path.parent.mkdir(parents=True, exist_ok=True)
@@ -211,6 +223,9 @@ class BlenderSessionMonitor:
             current_file_checklist=cache_data["current_file_checklist"],
             unlock_ssot_request=cache_data["unlock_ssot_request"],
             ssot_unlock_count=cache_data["ssot_unlock_count"],
+            current_file_notes=cache_data.get("current_file_notes", ""),
+            increment_from=cache_data.get("increment_from", ""),
+            increment_to=cache_data.get("increment_to", ""),
         )
 
         from workers.core import FossaWorker
@@ -264,6 +279,13 @@ class BlenderSessionMonitor:
         unlock_count = cache_data.get("ssot_unlock_count", 0)
         if not isinstance(unlock_count, int) or isinstance(unlock_count, bool):
             raise ValueError("Blender cache ssot_unlock_count must be an integer")
+        notes = cache_data.get("current_file_notes", "")
+        if not isinstance(notes, str):
+            raise ValueError("Blender cache current_file_notes must be text")
+        for field in ("increment_from", "increment_to"):
+            value = cache_data.get(field, "")
+            if not isinstance(value, str):
+                raise ValueError(f"Blender cache {field} must be text")
 
     def _ReportFailure(self, message):
         self.fossa_db._ReportFailure(
