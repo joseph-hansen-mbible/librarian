@@ -1,3 +1,5 @@
+import datetime
+
 from db.project_structure import ProjectStructure
 from db import file_lock
 
@@ -40,6 +42,9 @@ class ProjectMethods:
                     "requester": pending_change.get("requester"),
                     "proposed": pending_change.get("proposed"),
                     "approvals": ProjectStructure.GetApprovals(pending_change),
+                    "rejections": list(pending_change.get("rejections", [])),
+                    "approval_log": list(pending_change.get("approval_log", [])),
+                    "rejection_log": list(pending_change.get("rejection_log", [])),
                     "required_approvals": self.REQUIRED_PROJECT_APPROVALS,
                 }
             else:
@@ -193,6 +198,9 @@ class ProjectMethods:
                     "status": "pending",
                     "proposed": proposed_structure,
                     "approvals": [],
+                    "rejections": [],
+                    "approval_log": [],
+                    "rejection_log": [],
                     "acknowledged": False,
                 }
                 project["active_structure_change_request_id"] = request_id
@@ -228,6 +236,9 @@ class ProjectMethods:
                     "request_id": request_id,
                     "requester": request.get("requester"),
                     "approvals": ProjectStructure.GetApprovals(request),
+                    "rejections": list(request.get("rejections", [])),
+                    "approval_log": list(request.get("approval_log", [])),
+                    "rejection_log": list(request.get("rejection_log", [])),
                     "required_approvals": self.REQUIRED_PROJECT_APPROVALS,
                     "proposed": ProjectStructure.Normalize(
                         request.get("proposed"),
@@ -278,6 +289,11 @@ class ProjectMethods:
                         "request_id": request_id,
                         "requester": requester,
                         "status": request["status"],
+                        "approvals": list(request.get("approvals", [])),
+                        "reviewers": list(request.get("reviewers", [])),
+                        "rejections": list(request.get("rejections", [])),
+                        "approval_log": list(request.get("approval_log", [])),
+                        "rejection_log": list(request.get("rejection_log", [])),
                     }
                 )
         return results
@@ -327,6 +343,18 @@ class ProjectMethods:
                     request["status"] = "rejected"
                     request["approvals"] = []
                     request["reviewer"] = reviewer
+                    request.setdefault("rejections", [])
+                    if reviewer not in request["rejections"]:
+                        request["rejections"].append(reviewer)
+                    request.setdefault("rejection_log", []).append(
+                        {
+                            "reviewer": reviewer,
+                            "decision": "rejected",
+                            "timestamp": datetime.datetime.now(
+                                datetime.timezone.utc
+                            ).isoformat(),
+                        }
+                    )
                     project["active_structure_change_request_id"] = None
                     self._WriteDatabase(database)
                     return "rejected"
@@ -334,6 +362,15 @@ class ProjectMethods:
                 if reviewer in approvals:
                     raise ValueError("You have already approved this project change")
                 approvals.append(reviewer)
+                request.setdefault("approval_log", []).append(
+                    {
+                        "reviewer": reviewer,
+                        "decision": "approved",
+                        "timestamp": datetime.datetime.now(
+                            datetime.timezone.utc
+                        ).isoformat(),
+                    }
+                )
                 if len(set(approvals)) >= self.REQUIRED_PROJECT_APPROVALS:
                     proposed = ProjectStructure.Normalize(
                         request.get("proposed"),

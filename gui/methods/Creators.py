@@ -378,12 +378,21 @@ class CreatorsMaintab:
             selectmode="browse",
             height=8,
         )
-        treeview.column("Status", width=90, minwidth=80, stretch=True)
+        treeview.column("Status", width=70, minwidth=60, stretch=False)
         treeview.column("Date", width=100, minwidth=90, stretch=True)
-        treeview.column("Artist", width=105, minwidth=85, stretch=True)
-        treeview.column("File", width=130, minwidth=100, stretch=True)
+        treeview.column("Artist", width=85, minwidth=70, stretch=False)
+        treeview.column("File", width=220, minwidth=180, stretch=True)
         for column in columns:
-            treeview.heading(column, text=column)
+            treeview.heading(
+                column,
+                text=column,
+                command=lambda _column=column: Filters.sort_treeview(
+                    ref,
+                    treeview,
+                    _column,
+                    False,
+                ),
+            )
             treeview.column(column, anchor="w")
 
         v_scrollbar = ttk.Scrollbar(

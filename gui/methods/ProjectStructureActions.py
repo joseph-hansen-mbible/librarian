@@ -174,33 +174,49 @@ class ProjectStructureActions:
     def add_setting(self):
         e = self.editor
         level = e.selected_scene()
-        if level is None:
-            messagebox.showinfo(
-                "Select a level",
-                "Select a level before adding a setting.",
-                parent=e.dialog,
-            )
+        values = ProjectStructureDialogs.prompt_setting(
+            e.dialog,
+            e.ref,
+            "Add Setting",
+            e.draft["scenes"],
+            [level["name"]] if level is not None else [],
+        )
+        if values is None:
             return
-        name = e.prompt_name("Add Setting", "Setting name:")
-        if name is None:
-            return
+        name, level_names = values
         name = ProjectStructureDialogs.validate_unique_name(
             e.dialog,
             name,
-            level["settings"],
+            [],
             "Setting",
         )
         if name is None:
             return
+        if not level_names:
+            messagebox.showerror(
+                "No level selected",
+                "Select at least one level for this setting.",
+                parent=e.dialog,
+            )
+            return
         updated = deepcopy(e.draft)
-        next_level = next(
-            item for item in updated["scenes"]
-            if item["name"] == level["name"]
-        )
-        next_level["settings"].append(name)
+        for level_name in level_names:
+            next_level = next(
+                item for item in updated["scenes"]
+                if item["name"] == level_name
+            )
+            if name in next_level["settings"]:
+                messagebox.showerror(
+                    "Duplicate setting",
+                    f"Setting {name!r} already exists in Level {level_name}.",
+                    parent=e.dialog,
+                )
+                return
+            next_level["settings"].append(name)
+        first_level = level_names[0]
         e.persist_draft(
             updated,
-            level["name"],
+            first_level,
             e.selected_value(e.shot_listbox),
             setting_name=name,
         )

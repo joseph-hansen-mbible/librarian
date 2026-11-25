@@ -22,11 +22,17 @@ class CreatorsProjectApprovals:
         ).pack(fill="x", padx=10, pady=10)
 
         approvals = change.get("approvals", [])
+        rejections = change.get("rejections", [])
         required_approvals = change.get("required_approvals", 2)
         approval_names = ", ".join(approvals) if approvals else "none yet"
+        rejection_names = ", ".join(rejections) if rejections else "none yet"
         ttk.Label(
             dialog,
             text=f"Approvals: {len(approvals)}/{required_approvals} ({approval_names})",
+        ).pack(fill="x", padx=10, pady=(0, 8))
+        ttk.Label(
+            dialog,
+            text=f"Rejections: {rejection_names}",
         ).pack(fill="x", padx=10, pady=(0, 8))
 
         summary = CreatorsProjectApprovals.describe_project_structure_change(change)

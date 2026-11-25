@@ -4,6 +4,69 @@ from tkinter import messagebox, ttk
 
 class ProjectStructureDialogs:
     @staticmethod
+    def prompt_setting(parent, ref, title, levels, selected_levels=None):
+        result = {"value": None}
+        popup = tk.Toplevel(parent)
+        popup.title(title)
+        popup.transient(parent)
+        popup.resizable(False, False)
+
+        ttk.Label(popup, text="Setting name").pack(
+            fill="x", padx=10, pady=(10, 4)
+        )
+        name_var = tk.StringVar()
+        ttk.Entry(popup, textvariable=name_var, width=48).pack(
+            fill="x", padx=10, pady=4
+        )
+        ttk.Label(popup, text="Add to levels").pack(
+            anchor="w", padx=10, pady=(8, 2)
+        )
+        level_vars = {}
+        selected_levels = set(selected_levels or [])
+        for level in sorted(levels, key=lambda item: int(item["name"])):
+            label = (
+                f'{level["name"]} - {level["subtitle"]}'
+                if level.get("subtitle")
+                else level["name"]
+            )
+            level_vars[level["name"]] = tk.BooleanVar(
+                value=level["name"] in selected_levels
+            )
+            ttk.Checkbutton(
+                popup,
+                text=label,
+                variable=level_vars[level["name"]],
+            ).pack(anchor="w", padx=16, pady=1)
+
+        buttons = ttk.Frame(popup)
+        buttons.pack(fill="x", padx=10, pady=10)
+
+        def finish(accepted):
+            if accepted:
+                result["value"] = (
+                    name_var.get(),
+                    [
+                        level_name
+                        for level_name, variable in level_vars.items()
+                        if variable.get()
+                    ],
+                )
+            popup.destroy()
+
+        ProjectStructureDialogs.add_cancel_button(
+            buttons, ref, lambda: finish(False)
+        ).pack(side="right", padx=(5, 0))
+        ttk.Button(
+            buttons,
+            text="OK",
+            command=lambda: finish(True),
+        ).pack(side="right")
+        popup.protocol("WM_DELETE_WINDOW", lambda: finish(False))
+        popup.grab_set()
+        popup.wait_window()
+        return result["value"]
+
+    @staticmethod
     def prompt_text(parent, ref, title, prompt, initial_value=""):
         result = {"value": None}
         popup = tk.Toplevel(parent)

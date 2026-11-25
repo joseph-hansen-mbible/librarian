@@ -61,12 +61,11 @@ class ProjectStructureEditor:
             cached is not None
             and cached.get("base_structure", canonical) != canonical
         ):
-            messagebox.showerror(
-                "Draft is out of date",
-                "The project changed after this draft was started. Discard the draft and reopen the editor.",
-                parent=self.ref.projects_tab,
-            )
-            return False
+            try:
+                self.ref.clear_project_structure_draft(self.project.id)
+            except (OSError, ValueError):
+                pass
+            cached = None
         self.base_structure = deepcopy(canonical)
         self.draft = {
             "scenes": deepcopy(
@@ -392,6 +391,9 @@ class ProjectStructureEditor:
         setting_name=None,
     ):
         self.scene_listbox.delete(0, tk.END)
+        self.draft["scenes"].sort(
+            key=lambda level: int(level["name"]),
+        )
         for level in self.draft["scenes"]:
             self.scene_listbox.insert(tk.END, self.display_scene(level))
         if scene_name in [level["name"] for level in self.draft["scenes"]]:

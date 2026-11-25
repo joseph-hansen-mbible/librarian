@@ -4,6 +4,31 @@ from pathlib import Path
 
 class Filters:    
     @staticmethod
+    def sort_treeview(ref, treeview, column, reverse, item_ids=None, filter_callback=None):
+        items = [(treeview.set(item, column), item) for item in treeview.get_children("")]
+        items.sort(
+            key=lambda pair: str(pair[0]).casefold(),
+            reverse=reverse,
+        )
+        for index, (_, item) in enumerate(items):
+            treeview.move(item, "", index)
+        if item_ids is not None:
+            item_ids[:] = [item for _, item in items]
+        if filter_callback is not None:
+            filter_callback(ref)
+        treeview.heading(
+            column,
+            command=lambda _column=column: Filters.sort_treeview(
+                ref,
+                treeview,
+                _column,
+                not reverse,
+                item_ids,
+                filter_callback,
+            ),
+        )
+
+    @staticmethod
     def filter_all_files_treeview(ref):
         treeview = ref.locks_treeview
         query = ref.all_files_filter_var.get().casefold()

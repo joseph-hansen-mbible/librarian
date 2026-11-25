@@ -343,10 +343,70 @@ class FossaDB(ProjectMethods):
                 file_record["unlock_approval_names"] = []
                 file_record["unlock_approvals"] = 0
                 file_record["unlock_requested"] = True
+                file_record["unlock_rejection_names"] = []
+                file_record["unlock_approval_log"] = []
+                file_record["unlock_rejection_log"] = []
                 files[requested_path] = file_record
                 artist_data["unlock_ssot_request"] = True
                 artist_data["ssot_unlock_count"] = 0
                 database[artist] = artist_data
+                self._WriteDatabase(database)
+                return True
+            finally:
+                file_lock.flock(lock_file.fileno(), file_lock.LOCK_UN)
+
+    def RejectSSOTUnlock(self, artist, filepath, reviewer):
+        artist = str(artist)
+        reviewer = str(reviewer)
+        requested_path = str(Path(filepath).expanduser().resolve())
+        if not reviewer:
+            raise ValueError("Reviewer must not be empty")
+        if reviewer == artist:
+            raise ValueError("The checked-out artist cannot reject their own unlock")
+
+        with self.lock_file_path.open(mode="a+", encoding="utf-8") as lock_file:
+            file_lock.flock(lock_file.fileno(), file_lock.LOCK_EX)
+            try:
+                database = self._ReadDatabase()
+                files = database.setdefault("__blender_files__", {})
+                if not isinstance(files, dict):
+                    raise ValueError("Blender file index must be a JSON object")
+                file_record = files.get(requested_path, {})
+                if not isinstance(file_record, dict):
+                    raise ValueError("Unknown Blender file")
+                if not file_record.get("unlock_requested", False):
+                    raise ValueError("No SSOT unlock has been requested")
+
+                rejections = file_record.get("unlock_rejection_names", [])
+                if not isinstance(rejections, list):
+                    rejections = []
+                rejections = [name for name in rejections if isinstance(name, str)]
+                if reviewer not in rejections:
+                    rejections.append(reviewer)
+                rejection_log = file_record.get("unlock_rejection_log", [])
+                if not isinstance(rejection_log, list):
+                    rejection_log = []
+                rejection_log.append(
+                    {
+                        "reviewer": reviewer,
+                        "decision": "rejected",
+                        "timestamp": datetime.datetime.now(
+                            datetime.timezone.utc
+                        ).isoformat(),
+                    }
+                )
+                file_record["unlock_rejection_names"] = rejections
+                file_record["unlock_rejection_log"] = rejection_log
+                file_record["unlock_requested"] = False
+                file_record["unlock_approval_names"] = []
+                file_record["unlock_approvals"] = 0
+                files[requested_path] = file_record
+
+                owner_data = database.get(artist)
+                if isinstance(owner_data, dict):
+                    owner_data["unlock_ssot_request"] = False
+                    owner_data["ssot_unlock_count"] = 0
+                    database[artist] = owner_data
                 self._WriteDatabase(database)
                 return True
             finally:
@@ -385,6 +445,19 @@ class FossaDB(ProjectMethods):
 
                 approvals.append(reviewer)
                 approvals = approvals[:self.REQUIRED_PROJECT_APPROVALS]
+                approval_log = file_record.get("unlock_approval_log", [])
+                if not isinstance(approval_log, list):
+                    approval_log = []
+                approval_log.append(
+                    {
+                        "reviewer": reviewer,
+                        "decision": "approved",
+                        "timestamp": datetime.datetime.now(
+                            datetime.timezone.utc
+                        ).isoformat(),
+                    }
+                )
+                file_record["unlock_approval_log"] = approval_log
                 approval_count = len(approvals)
                 file_record["unlock_approval_names"] = approvals
                 file_record["unlock_approvals"] = approval_count
@@ -545,6 +618,16 @@ class FossaDB(ProjectMethods):
                     raise ValueError(
                         f"Cache data for {artist!r} must be a JSON object"
                     )
+
+                incoming_current_file = cache_data.get("current_file", "")
+                existing_current_file = artist_data.get("current_file", "")
+                if (
+                    isinstance(incoming_current_file, str)
+                    and incoming_current_file
+                    and incoming_current_file != existing_current_file
+                ):
+                    network_cache_path.unlink(missing_ok=True)
+                    return True
 
                 existing_recent_files = artist_data.get("recent_files", [])
                 if not isinstance(existing_recent_files, list):

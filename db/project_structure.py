@@ -51,7 +51,15 @@ class ProjectStructure:
 
         normalized_scenes = []
         seen_scenes = set()
-        for level in scenes:
+        for level in sorted(
+            scenes,
+            key=lambda item: (
+                int(item.get("name"))
+                if isinstance(item, dict)
+                and cls.SCENE_NUMBER_PATTERN.fullmatch(str(item.get("name", "")))
+                else 999
+            ),
+        ):
             if not isinstance(level, dict):
                 raise ValueError("Each project level must be a JSON object")
             name = level.get("name")

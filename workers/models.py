@@ -17,14 +17,15 @@ class WorkerNames(Enum):
     HAYDN = 12
     SCHUBERT = 13
     STRAVINKSY = 14
-    SOULJA_BOY = 15
-    FETTY_WAP = 16
-    METRO_BOOMIN = 16
-    LIL_UZI_VERT = 17
-    DON_TOLLIVER = 18
-    SNOOP_DOGG = 19
-    JUICE_WRLD = 20
-    KENDRICK_LAMAR = 21
+    GRIEG = 15
+    SOULJA_BOY = 16
+    FETTY_WAP = 17
+    METRO_BOOMIN = 18
+    LIL_UZI_VERT = 19
+    DON_TOLLIVER = 20
+    SNOOP_DOGG = 21
+    JUICE_WRLD = 22
+    KENDRICK_LAMAR = 23
 
 
 class LFRoles(Enum):

@@ -102,6 +102,73 @@ def _FreeUpStuckWorkers(ref):
             parent=ref.main_window,
         )
 
+def _ShowApprovalLog(ref):
+    popup = tk.Toplevel(ref.main_window)
+    popup.title("Approval Log")
+    popup.geometry("700x500")
+    popup.transient(ref.main_window)
+
+    text_frame = ttk.Frame(popup)
+    text_frame.pack(fill="both", expand=True, padx=10, pady=10)
+    text = tk.Text(text_frame, wrap="word", state="normal")
+    scrollbar = ttk.Scrollbar(text_frame, orient="vertical", command=text.yview)
+    text.configure(yscrollcommand=scrollbar.set)
+    text.pack(side="left", fill="both", expand=True)
+    scrollbar.pack(side="right", fill="y")
+
+    snapshot = ref.database.GetDatabaseSnapshot()
+    lines = ["APPROVAL / REJECTION LOG", ""]
+
+    projects = snapshot.get("__projects__", {})
+    if isinstance(projects, dict):
+        for project_id, project in projects.items():
+            if not isinstance(project, dict):
+                continue
+            requests = project.get("structure_change_requests", {})
+            if not isinstance(requests, dict):
+                continue
+            for request_id, request in requests.items():
+                if not isinstance(request, dict):
+                    continue
+                entries = list(request.get("approval_log", []))
+                entries.extend(request.get("rejection_log", []))
+                if not entries:
+                    continue
+                lines.append(
+                    f"Project: {project.get('name', project_id)} "
+                    f"(request {request_id})"
+                )
+                for entry in entries:
+                    if isinstance(entry, dict):
+                        lines.append(
+                            f"  {entry.get('timestamp', '')} - "
+                            f"{entry.get('reviewer', 'Unknown')} - "
+                            f"{entry.get('decision', 'unknown')}"
+                        )
+                lines.append("")
+
+    files = snapshot.get("__blender_files__", {})
+    if isinstance(files, dict):
+        for filepath, metadata in files.items():
+            if not isinstance(metadata, dict):
+                continue
+            entries = list(metadata.get("unlock_approval_log", []))
+            entries.extend(metadata.get("unlock_rejection_log", []))
+            if not entries:
+                continue
+            lines.append(f"SSOT unlock: {Path(filepath).name}")
+            for entry in entries:
+                if isinstance(entry, dict):
+                    lines.append(
+                        f"  {entry.get('timestamp', '')} - "
+                        f"{entry.get('reviewer', 'Unknown')} - "
+                        f"{entry.get('decision', 'unknown')}"
+                    )
+            lines.append("")
+
+    text.insert("1.0", "\n".join(lines) if len(lines) > 2 else "No approval activity logged.")
+    text.configure(state="disabled")
+
 def _SelectedLockFile(ref):
     selection = ref.locks_treeview.selection()
     if not selection:
@@ -123,10 +190,17 @@ def FossaUpdateSSOTButtons(ref):
     except:
         status = "wip"
     is_ssot = has_selection and status == "ssot"
+    checklist = metadata.get("checklist", {})
+    checklist_complete = (
+        isinstance(checklist, dict)
+        and bool(checklist)
+        and all(value is True for value in checklist.values())
+    )
+    unlock_requested = bool(metadata.get("unlock_requested", False))
     ref.view_ssot_checklist_button.configure(
         state="normal" if has_selection else "disabled"
     )
-    if is_ssot:
+    if has_selection and not is_ssot and checklist_complete and not unlock_requested:
         ref.request_unlock_ssot_button.configure(state="normal")
         if not ref.request_unlock_ssot_button.winfo_manager():
             ref.request_unlock_ssot_button.pack(
@@ -161,7 +235,8 @@ def FossaOpenSSOTChecklist(ref):
     checklist_complete = bool(checklist) and all(
         value is True for value in checklist.values()
     )
-    show_approval_controls = is_ssot and checklist_complete
+    unlock_requested = bool(file_metadata.get("unlock_requested", False))
+    show_approval_controls = unlock_requested and checklist_complete
 
     owner = None
     for artist, artist_data in snapshot.items():
@@ -276,6 +351,27 @@ def FossaOpenSSOTChecklist(ref):
                 parent=popup,
             )
 
+    def reject_unlock():
+        try:
+            ref.database.RejectSSOTUnlock(
+                owner or "",
+                filepath,
+                ref.selected_who or "",
+            )
+            _Helpers.FossaUpdateMainFileLists(ref, schedule=False)
+            popup.destroy()
+            messagebox.showinfo(
+                "SSOT Unlock",
+                "Unlock rejection recorded.",
+                parent=ref.main_window,
+            )
+        except Exception as error:
+            messagebox.showerror(
+                "SSOT Unlock",
+                str(error),
+                parent=popup,
+            )
+
     ttk.Button(
         button_frame,
         text="Save Checklist",
@@ -304,16 +400,30 @@ def FossaOpenSSOTChecklist(ref):
             + (f" ({', '.join(approvals)})" if approvals else ""),
         )
         approval_label.pack(anchor="w", padx=5, pady=5)
-
-        ttk.Button(
-            button_frame,
-            text="Request Unlock",
-            command=request_unlock,
-        ).pack(side="left", padx=(5, 0))
+        rejections = file_metadata.get("unlock_rejection_names", [])
+        if not isinstance(rejections, list):
+            rejections = []
+        rejections = [name for name in rejections if isinstance(name, str)]
+        ttk.Label(
+            approval_frame,
+            text=f"Rejected by: {', '.join(rejections) if rejections else 'none yet'}",
+        ).pack(anchor="w", padx=5, pady=(0, 5))
         ttk.Button(
             button_frame,
             text="Approve Unlock",
             command=approve_unlock,
+        ).pack(side="left", padx=(5, 0))
+        ttk.Button(
+            button_frame,
+            text="Reject Unlock",
+            command=reject_unlock,
+            style="Reject.TButton",
+        ).pack(side="left", padx=(5, 0))
+    elif checklist_complete and not is_ssot and not unlock_requested:
+        ttk.Button(
+            button_frame,
+            text="Request Unlock",
+            command=request_unlock,
         ).pack(side="left", padx=(5, 0))
 
 def _RestartFossa(ref):
@@ -405,6 +515,19 @@ def _FixStrandedCheckouts(ref):
             ]
             for artist in artists:
                 BlenderSessionCachePath(artist).unlink(missing_ok=True)
+            try:
+                from workers.platform_dirs import PlatformDirs
+
+                appdata = PlatformDirs(
+                    "Fossa",
+                    "Joseph Hansen",
+                    ensure_exists=True,
+                ).user_data_path
+                (appdata / f"{core.LFRoles.CACHING.value}.flf").unlink(
+                    missing_ok=True
+                )
+            except OSError:
+                pass
             cleared_artists = ref.database.ResetStrandedCheckouts()
             result = (len(cleared_artists), None)
         except Exception as error:
@@ -482,6 +605,10 @@ def FossaMenus(ref):
     tools_menu.add_command(
         label="Fix Stranded Checkouts",
         command=lambda: _FixStrandedCheckouts(ref),
+    )
+    tools_menu.add_command(
+        label="Show Approval Log",
+        command=lambda: _ShowApprovalLog(ref),
     )
     tools_menu.add_command(
         label="Open Records",
