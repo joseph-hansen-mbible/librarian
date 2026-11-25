@@ -730,6 +730,8 @@ class FossaDB(ProjectMethods):
                         return False
 
                 artist_data["current_file"] = str(requested_path)
+                if artist_data.get("pending_create_file") == str(requested_path):
+                    artist_data.pop("pending_create_file", None)
                 database[artist] = artist_data
                 self._WriteDatabase(database)
                 return True
