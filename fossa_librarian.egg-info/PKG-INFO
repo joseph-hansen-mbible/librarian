@@ -4,8 +4,6 @@ Version: 0.1.0
 Summary: A desktop librarian for Blender project files
 Requires-Python: >=3.11
 Description-Content-Type: text/markdown
-Requires-Dist: platformdirs>=4
-
 # librarian
 
 ## Theme

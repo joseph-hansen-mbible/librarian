@@ -4,9 +4,8 @@ import os
 from pathlib import Path
 from threading import Lock, Timer
 
-from platformdirs import PlatformDirs
-
 from workers.models import LocalCacheData, LFRoles
+from workers.platform_dirs import PlatformDirs
 
 
 BLENDER_CACHE_POLL_SECONDS = 20

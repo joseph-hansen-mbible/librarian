@@ -5,10 +5,9 @@ from pathlib import Path
 import shutil
 from threading import Thread, Timer
 
-from platformdirs import PlatformDirs
-
 from db import file_lock
 from workers.models import LFRoles
+from workers.platform_dirs import PlatformDirs
 
 
 class CacheWorkerMethods:

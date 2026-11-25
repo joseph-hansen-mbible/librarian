@@ -3,7 +3,7 @@ import tkinter as tk
 from tkinter import Menu, ttk
 import tkinter.font as tkFont
 import json
-from platformdirs import PlatformDirs
+from workers.platform_dirs import PlatformDirs
 
 class References:
     # basically a global manager
