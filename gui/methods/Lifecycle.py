@@ -206,6 +206,18 @@ def FossaCloseApplication(ref):
 
     def clean_up_workers():
         try:
+            artist = getattr(ref, "selected_who", None)
+            if artist:
+                worker_path = ref.get_worker_network_base_path()
+                try:
+                    from gui.methods.BlenderActions import _CheckInBlenderFile
+                    _CheckInBlenderFile(ref, artist, worker_path)
+                except Exception as checkin_error:
+                    print(
+                        f"Failed to check in Blender session during shutdown: "
+                        f"{checkin_error}",
+                        file=sys.stderr,
+                    )
             BlenderSessionMonitor.StopAll()
             core.FossaWorker.DestroyAll()
         except Exception as error:

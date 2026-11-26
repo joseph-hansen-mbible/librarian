@@ -914,6 +914,8 @@ class FossaDB(ProjectMethods):
                     artist_data["current_file_checklist"] = dict(checklist)
                     artist_data["current_file_notes"] = notes
                 elif current_file == "":
+                    artist_data["current_file"] = ""
+                    artist_data.pop("pending_create_file", None)
                     artist_data["current_file_notes"] = ""
 
                 cache_data.pop("increment_from", None)

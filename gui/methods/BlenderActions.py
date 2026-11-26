@@ -365,6 +365,19 @@ def _SchedulePendingBlenderFileCheckoutResult(
                 f"Failed to clear pending Blender file creation: {clear_error}",
                 file=sys.stderr,
             )
+        if checked_out:
+            try:
+                _RollbackBlenderCheckout(
+                    ref,
+                    pending["artist"],
+                    pending["project"].directory_path,
+                )
+            except Exception as rollback_error:
+                print(
+                    f"Failed to roll back pending Blender checkout: "
+                    f"{rollback_error}",
+                    file=sys.stderr,
+                )
         return
     try:
         ref.main_window.after(
@@ -381,6 +394,44 @@ def _SchedulePendingBlenderFileCheckoutResult(
             f"Could not report pending Blender file checkout: {callback_error}",
             file=sys.stderr,
         )
+        try:
+            _FinishPendingBlenderFileCheckout(
+                ref,
+                pending,
+                checked_out,
+                Exception(
+                    f"Could not schedule pending checkout callback: "
+                    f"{callback_error}"
+                ),
+            )
+        except Exception as finish_error:
+            print(
+                f"Could not finish pending Blender checkout fallback: "
+                f"{finish_error}",
+                file=sys.stderr,
+            )
+        try:
+            pending["database"].ClearBlenderFileCreationPending(
+                pending["artist"],
+                pending["filepath"],
+            )
+        except Exception as clear_error:
+            print(
+                f"Could not clear pending Blender file creation: {clear_error}",
+                file=sys.stderr,
+            )
+        if checked_out:
+            try:
+                pending["database"].RecordBlenderFileUse(
+                    pending["artist"],
+                    pending["filepath"],
+                    pending["metadata"],
+                )
+            except Exception as metadata_error:
+                print(
+                    f"Could not record pending Blender file use: {metadata_error}",
+                    file=sys.stderr,
+                )
 
 def _FinishPendingBlenderFileCheckout(ref, pending, checked_out, error):
     reported_errors = []
@@ -451,4 +502,3 @@ def _BlenderFileMetadata(blender_file, project):
         "checklist": dict(blender_file.checklist),
         "unlock_approvals": blender_file.unlock_approvals,
     }
-
