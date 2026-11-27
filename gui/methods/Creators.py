@@ -344,8 +344,33 @@ class CreatorsMaintab:
     
     @staticmethod
     def create_file_text_table(parent, ref, columns, column_weights):
-        table = ttk.Frame(parent, style="CurrentFiles.TFrame")
-        table.pack(fill='both', expand=True, pady=5)
+        scroll_frame = ttk.Frame(parent, style="CurrentFiles.TFrame")
+        scroll_frame.pack(fill="both", expand=True, pady=5)
+        canvas = tk.Canvas(
+            scroll_frame,
+            background="#2b2d32",
+            highlightthickness=0,
+        )
+        scrollbar = ttk.Scrollbar(
+            scroll_frame,
+            orient=tk.VERTICAL,
+            command=canvas.yview,
+        )
+        canvas.configure(yscrollcommand=scrollbar.set)
+        table = ttk.Frame(canvas, style="CurrentFiles.TFrame")
+        table_window = canvas.create_window((0, 0), window=table, anchor="nw")
+        table.bind(
+            "<Configure>",
+            lambda _event: canvas.configure(scrollregion=canvas.bbox("all")),
+        )
+        canvas.bind(
+            "<Configure>",
+            lambda event: canvas.itemconfigure(table_window, width=event.width),
+        )
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        ref.current_files_canvas = canvas
+
         for index, column in enumerate(columns):
             table.grid_columnconfigure(index, weight=column_weights[index])
             ttk.Label(

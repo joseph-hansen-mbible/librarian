@@ -42,6 +42,31 @@ class Populators:
             ref.who_listbox.insert(tk.END, option)
     
     @staticmethod
+    def clear_project_details(ref):
+        ref.selected_project = None
+        ref.project_details_label.configure(text="Project Details")
+        ref.project_status_var.set("Status")
+        ref.project_details_code.configure(text="")
+        ref.project_details_directory_path.configure(text="")
+        ref.project_status_menu.configure(state="disabled")
+        ref.project_structure_status_label.configure(text="")
+        ref.project_structure_button.configure(state="disabled")
+        ref.project_structure_discard_button.configure(state="disabled")
+        ref.project_structure_button.pack_forget()
+        ref.project_structure_discard_button.pack_forget()
+        for listbox in (
+            ref.project_character_listbox,
+            ref.project_scene_listbox,
+            ref.project_shot_listbox,
+            ref.project_prop_listbox,
+            ref.project_setting_listbox,
+        ):
+            listbox.delete(0, tk.END)
+        for frame, title in ref.project_structure_frames.items():
+            frame.configure(text=f"{title} (0)")
+        ref.command_project_var.set("Project")
+
+    @staticmethod
     def populate_project_listbox(ref, projects):
         selected_project_id = None
         selection = ref.project_listbox.curselection()
@@ -59,34 +84,19 @@ class Populators:
                     for index, project in enumerate(ref.projects)
                     if project.id == selected_project_id
                 ),
-                0,
+                None,
             )
+            if selected_index is None and selected_project_id is None:
+                selected_index = 0
+        else:
+            selected_index = None
+        if selected_index is not None:
             ref.project_listbox.selection_set(selected_index)
             ref.project_listbox.activate(selected_index)
             ref.project_listbox.event_generate("<<ListboxSelect>>")
         else:
-            ref.selected_project = None
-            ref.project_details_label.configure(text="Project Details")
-            ref.project_status_var.set("Status")
-            ref.project_details_code.configure(text="")
-            ref.project_details_directory_path.configure(text="")
-            ref.project_status_menu.configure(state="disabled")
-            ref.project_structure_status_label.configure(text="")
-            ref.project_structure_button.configure(state="disabled")
-            ref.project_structure_discard_button.configure(state="disabled")
-            ref.project_structure_button.pack_forget()
-            ref.project_structure_discard_button.pack_forget()
-            for listbox in (
-                ref.project_character_listbox,
-                ref.project_scene_listbox,
-                ref.project_shot_listbox,
-                ref.project_prop_listbox,
-                ref.project_setting_listbox,
-            ):
-                listbox.delete(0, tk.END)
-            for frame, title in ref.project_structure_frames.items():
-                frame.configure(text=f"{title} (0)")
-            ref.command_project_var.set("Project")
+            ref.project_listbox.selection_clear(0, tk.END)
+            Populators.clear_project_details(ref)
 
     @staticmethod
     def populate_command_project_optionbox(ref, projects):

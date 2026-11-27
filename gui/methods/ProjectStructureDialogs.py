@@ -9,18 +9,51 @@ class ProjectStructureDialogs:
         popup = tk.Toplevel(parent)
         popup.title(title)
         popup.transient(parent)
-        popup.resizable(False, False)
+        popup.geometry("420x500")
+        popup.minsize(360, 300)
 
         ttk.Label(popup, text="Setting name").pack(
             fill="x", padx=10, pady=(10, 4)
         )
         name_var = tk.StringVar()
-        ttk.Entry(popup, textvariable=name_var, width=48).pack(
+        name_entry = ttk.Entry(popup, textvariable=name_var, width=48)
+        name_entry.pack(
             fill="x", padx=10, pady=4
         )
         ttk.Label(popup, text="Add to levels").pack(
             anchor="w", padx=10, pady=(8, 2)
         )
+        levels_frame = ttk.Frame(popup)
+        levels_frame.pack(fill="both", expand=True, padx=10)
+        canvas = tk.Canvas(levels_frame, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(
+            levels_frame,
+            orient=tk.VERTICAL,
+            command=canvas.yview,
+        )
+        level_options_frame = ttk.Frame(canvas)
+        level_options_window = canvas.create_window(
+            (0, 0),
+            window=level_options_frame,
+            anchor="nw",
+        )
+        level_options_frame.bind(
+            "<Configure>",
+            lambda event: canvas.configure(
+                scrollregion=(0, 0, event.width, event.height)
+            ),
+        )
+        canvas.bind(
+            "<Configure>",
+            lambda event: canvas.itemconfigure(
+                level_options_window,
+                width=event.width,
+            ),
+        )
+        canvas.configure(yscrollcommand=scrollbar.set)
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
         level_vars = {}
         selected_levels = set(selected_levels or [])
         for level in sorted(levels, key=lambda item: int(item["name"])):
@@ -33,7 +66,7 @@ class ProjectStructureDialogs:
                 value=level["name"] in selected_levels
             )
             ttk.Checkbutton(
-                popup,
+                level_options_frame,
                 text=label,
                 variable=level_vars[level["name"]],
             ).pack(anchor="w", padx=16, pady=1)
@@ -63,6 +96,7 @@ class ProjectStructureDialogs:
         ).pack(side="right")
         popup.protocol("WM_DELETE_WINDOW", lambda: finish(False))
         popup.grab_set()
+        name_entry.focus_set()
         popup.wait_window()
         return result["value"]
 
@@ -166,8 +200,28 @@ class ProjectStructureDialogs:
             padx=10,
             pady=(10, 4),
         )
-        value = tk.Text(popup, height=10, wrap="none")
-        value.pack(fill="both", expand=True, padx=10, pady=4)
+        text_frame = ttk.Frame(popup)
+        text_frame.pack(fill="both", expand=True, padx=10, pady=4)
+        value = tk.Text(text_frame, height=10, wrap="none")
+        vertical_scrollbar = ttk.Scrollbar(
+            text_frame,
+            orient=tk.VERTICAL,
+            command=value.yview,
+        )
+        horizontal_scrollbar = ttk.Scrollbar(
+            text_frame,
+            orient=tk.HORIZONTAL,
+            command=value.xview,
+        )
+        value.configure(
+            yscrollcommand=vertical_scrollbar.set,
+            xscrollcommand=horizontal_scrollbar.set,
+        )
+        text_frame.grid_columnconfigure(0, weight=1)
+        text_frame.grid_rowconfigure(0, weight=1)
+        value.grid(row=0, column=0, sticky="nsew")
+        vertical_scrollbar.grid(row=0, column=1, sticky="ns")
+        horizontal_scrollbar.grid(row=1, column=0, sticky="ew")
         buttons = ttk.Frame(popup)
         buttons.pack(fill="x", padx=10, pady=10)
 

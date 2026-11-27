@@ -14,6 +14,27 @@ class CreatorsProjectDetails:
         if not selection:
             return
         project = ref.projects[selection[0]]
+        previous_project = getattr(ref, "selected_project", None)
+        preserve_structure_selection = (
+            previous_project is not None and previous_project.id == project.id
+        )
+        structure_listboxes = (
+            ref.project_character_listbox,
+            ref.project_scene_listbox,
+            ref.project_shot_listbox,
+            ref.project_prop_listbox,
+            ref.project_setting_listbox,
+        )
+        selected_structure_items = (
+            {
+                listbox: [
+                    listbox.get(index) for index in listbox.curselection()
+                ]
+                for listbox in structure_listboxes
+            }
+            if preserve_structure_selection
+            else {}
+        )
         ref.selected_project = project
         ref.command_project_var.set(project.name)
         ref.project_details_label.configure(text=project.name)
@@ -23,13 +44,7 @@ class CreatorsProjectDetails:
         )
         ref.project_details_directory_path.configure(text=project.directory_path)
         ref.project_status_menu.configure(state="readonly")
-        for listbox in (
-            ref.project_character_listbox,
-            ref.project_scene_listbox,
-            ref.project_shot_listbox,
-            ref.project_prop_listbox,
-            ref.project_setting_listbox,
-        ):
+        for listbox in structure_listboxes:
             listbox.delete(0, tk.END)
         for character in project.characters:
             ref.project_character_listbox.insert(tk.END, character)
@@ -52,6 +67,12 @@ class CreatorsProjectDetails:
                 )
         for prop in project.props:
             ref.project_prop_listbox.insert(tk.END, prop)
+        for listbox, selected_items in selected_structure_items.items():
+            for selected_item in selected_items:
+                for index in range(listbox.size()):
+                    if listbox.get(index) == selected_item:
+                        listbox.selection_set(index)
+                        break
         structure_counts = (
             ("Characters", len(project.characters)),
             ("Levels", len(project.scenes)),
