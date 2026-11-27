@@ -42,6 +42,9 @@ class FossaDB(ProjectMethods):
                     artist_data.pop("unlock_ssot_request", None)
                     artist_data.pop("ssot_unlock_count", None)
                     artist_data.pop("current_file_checklist", None)
+                    artist_data.pop("current_file_notes", None)
+                    artist_data.pop("blender_open", None)
+                    artist_data.pop("revision", None)
 
                     if had_current_file or had_pending_file:
                         cleared_artists.append(str(artist))
@@ -55,6 +58,9 @@ class FossaDB(ProjectMethods):
                         file_record.pop("unlock_approval_names", None)
                         file_record.pop("unlock_approvals", None)
                         file_record.pop("unlock_ssot_ready", None)
+                        file_record.pop("unlock_rejection_names", None)
+                        file_record.pop("unlock_rejection_log", None)
+                        file_record.pop("unlock_approval_log", None)
 
                 self._WriteDatabase(database)
 
@@ -115,13 +121,28 @@ class FossaDB(ProjectMethods):
                 if self.database_file_path.exists():
                     self._ReadDatabase()
                 else:
+                    unexpected_entries = [
+                        entry
+                        for entry in self.network_base_path.iterdir()
+                        if entry.name != ".fossa.db.lock"
+                    ]
+                    if unexpected_entries:
+                        message = (
+                            "Fossa database file is missing; refusing to create "
+                            "an empty replacement because the network location "
+                            "is not new"
+                        )
+                        self._ReportFailure(message)
+                        raise FileNotFoundError(message)
                     self._WriteDatabase({})
             finally:
                 file_lock.flock(lock_file.fileno(), file_lock.LOCK_UN)
 
     def _ReadDatabase(self):
         if not self.database_file_path.exists():
-            return {}
+            message = f"Fossa database file is missing: {self.database_file_path}"
+            self._ReportFailure(message)
+            raise FileNotFoundError(message)
 
         last_error = OSError("Fossa database read retry exhausted")
         for attempt in range(5):
@@ -129,9 +150,11 @@ class FossaDB(ProjectMethods):
                 with self.database_file_path.open(mode="r", encoding="utf-8") as file:
                     database = json.load(file)
                 if not isinstance(database, dict):
-                    raise ValueError("Fossa database must be a JSON object")
+                    message = "Fossa database must be a JSON object"
+                    self._ReportFailure(message)
+                    raise ValueError(message)
                 return database
-            except (OSError, json.JSONDecodeError) as error:
+            except (OSError, json.JSONDecodeError, UnicodeDecodeError) as error:
                 last_error = error
                 if isinstance(error, OSError):
                     if not self._storage_diagnostic_reported:
@@ -143,8 +166,12 @@ class FossaDB(ProjectMethods):
                         self._storage_diagnostic_reported = True
                 if attempt < 4:
                     time.sleep((attempt + 1) * 0.05)
-        if isinstance(last_error, json.JSONDecodeError):
+        if isinstance(last_error, (json.JSONDecodeError, UnicodeDecodeError)):
+            message = f"Fossa database JSON is corrupt: {last_error}"
+            self._ReportFailure(message)
             raise last_error
+        message = f"Fossa database read failed: {last_error}"
+        self._ReportFailure(message)
         raise last_error
 
     def IsConnected(self):
@@ -246,6 +273,34 @@ class FossaDB(ProjectMethods):
         return diagnostic
 
     def _WriteDatabase(self, database):
+        if not isinstance(database, dict):
+            message = "Refusing to write a Fossa database that is not a JSON object"
+            self._ReportFailure(message)
+            raise ValueError(message)
+
+        if database == {} and self.database_file_path.exists():
+            try:
+                with self.database_file_path.open("r", encoding="utf-8") as file:
+                    existing = json.load(file)
+                if not isinstance(existing, dict):
+                    message = (
+                        "Refusing to replace a corrupted Fossa database because "
+                        "its JSON root is not an object"
+                    )
+                    self._ReportFailure(message)
+                    raise RuntimeError(message)
+                if existing:
+                    message = (
+                        "Refusing to replace a non-empty Fossa database with an "
+                        "empty object"
+                    )
+                    self._ReportFailure(message)
+                    raise RuntimeError(message)
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                message = "Refusing to replace a corrupted Fossa database"
+                self._ReportFailure(message)
+                raise RuntimeError(message)
+
         temporary_path = self.database_file_path.with_name(
             f".fossa.db.{uuid.uuid4().hex}.tmp"
         )
@@ -258,6 +313,22 @@ class FossaDB(ProjectMethods):
                         file.flush()
                         os.fsync(file.fileno())
                     os.replace(temporary_path, self.database_file_path)
+                    if os.name != "nt":
+                        try:
+                            directory_fd = os.open(
+                                str(self.database_file_path.parent),
+                                os.O_RDONLY,
+                            )
+                            try:
+                                os.fsync(directory_fd)
+                            finally:
+                                os.close(directory_fd)
+                        except OSError as error:
+                            message = (
+                                "Fossa database directory fsync failed after "
+                                f"atomic replacement: {error}"
+                            )
+                            self._ReportFailure(message)
                     return
                 except OSError as error:
                     last_error = error
@@ -349,16 +420,35 @@ class FossaDB(ProjectMethods):
                         raise ValueError(
                             f"Current file for {artist!r} must be a string"
                         )
-                    # A crashed or interrupted Blender session can leave this state
-                    # behind. Release the stale checkout so the requested file can
-                    # proceed through the normal pending-creation/checkout flow.
-                    artist_data["current_file"] = ""
+                    raise RuntimeError(
+                        f"{artist!r} already has an active Blender checkout"
+                    )
 
                 pending_file = artist_data.get("pending_create_file")
                 if pending_file not in (None, "", requested_path):
                     raise RuntimeError(
                         f"{artist!r} already has a pending Blender file creation"
                     )
+
+                for owner, owner_data in database.items():
+                    if owner == "__blender_files__":
+                        continue
+                    if not isinstance(owner_data, dict):
+                        continue
+                    if owner == artist:
+                        continue
+                    for field in ("current_file", "pending_create_file"):
+                        owned_path = owner_data.get(field)
+                        if not isinstance(owned_path, str) or not owned_path:
+                            continue
+                        if (
+                            Path(owned_path).expanduser().resolve()
+                            == Path(requested_path)
+                        ):
+                            raise RuntimeError(
+                                f"{owner!r} already owns Blender file "
+                                f"{requested_path}"
+                            )
                 artist_data["pending_create_file"] = requested_path
                 database[artist] = artist_data
                 self._WriteDatabase(database)
@@ -674,12 +764,16 @@ class FossaDB(ProjectMethods):
             raise ValueError("Filepath must not be empty")
 
         with self._OpenDatabaseLock() as lock_file:
-            try:
-                file_lock.flock(
-                    lock_file.fileno(), file_lock.LOCK_EX | file_lock.LOCK_NB
-                )
-            except BlockingIOError:
-                return False
+            for attempt in range(5):
+                try:
+                    file_lock.flock(
+                        lock_file.fileno(), file_lock.LOCK_EX
+                    )
+                    break
+                except BlockingIOError:
+                    if attempt == 4:
+                        return False
+                    time.sleep((attempt + 1) * 0.02)
 
             try:
                 database = self._ReadDatabase()
@@ -718,16 +812,32 @@ class FossaDB(ProjectMethods):
                         )
                     if owner == artist:
                         continue
+                    if owner == "__blender_files__":
+                        continue
 
                     current_file = cache_data.get("current_file")
-                    if current_file in (None, ""):
-                        continue
-                    if not isinstance(current_file, str):
-                        raise ValueError(
-                            f"Current file for {owner!r} must be a string"
-                        )
-                    if Path(current_file).expanduser().resolve() == requested_path:
-                        return False
+                    if current_file not in (None, ""):
+                        if not isinstance(current_file, str):
+                            raise ValueError(
+                                f"Current file for {owner!r} must be a string"
+                            )
+                        if (
+                            Path(current_file).expanduser().resolve()
+                            == requested_path
+                        ):
+                            return False
+
+                    pending_file = cache_data.get("pending_create_file")
+                    if pending_file not in (None, ""):
+                        if not isinstance(pending_file, str):
+                            raise ValueError(
+                                f"Pending file for {owner!r} must be a string"
+                            )
+                        if (
+                            Path(pending_file).expanduser().resolve()
+                            == requested_path
+                        ):
+                            return False
 
                 artist_data["current_file"] = str(requested_path)
                 if artist_data.get("pending_create_file") == str(requested_path):
@@ -765,19 +875,45 @@ class FossaDB(ProjectMethods):
                         f"Cache data for {artist!r} must be a JSON object"
                     )
 
-                if cache_data.get("blender_open") is False:
-                    existing_checklist = artist_data.get(
-                        "current_file_checklist",
-                        {},
+                cache_revision = cache_data.get("revision")
+                if (
+                    not isinstance(cache_revision, int)
+                    or isinstance(cache_revision, bool)
+                    or cache_revision < 0
+                ):
+                    raise ValueError(
+                        "Network cache revision must be a non-negative integer"
                     )
+                existing_revision = artist_data.get("revision")
+                if (
+                    isinstance(existing_revision, int)
+                    and not isinstance(existing_revision, bool)
+                    and cache_revision < existing_revision
+                ):
+                    network_cache_path.unlink(missing_ok=True)
+                    return True
+
+                if cache_data.get("blender_open") is False:
+                    closing_file = cache_data.get("closing_file", "")
+                    if closing_file:
+                        closing_file = str(
+                            Path(closing_file).expanduser().resolve()
+                        )
+                        active_checkout = artist_data.get("current_file", "")
+                        if isinstance(active_checkout, str) and active_checkout:
+                            active_checkout = str(
+                                Path(active_checkout).expanduser().resolve()
+                            )
+                        if active_checkout != closing_file:
+                            network_cache_path.unlink(missing_ok=True)
+                            return True
+
                     incoming_checklist = cache_data.get(
                         "current_file_checklist",
                         {},
                     )
                     if not isinstance(incoming_checklist, dict):
                         incoming_checklist = {}
-                    if not incoming_checklist and isinstance(existing_checklist, dict):
-                        incoming_checklist = existing_checklist
                     cache_data["current_file_checklist"] = dict(
                         incoming_checklist
                     )
@@ -786,13 +922,6 @@ class FossaDB(ProjectMethods):
                         "current_file_notes",
                         "",
                     )
-                    if not isinstance(incoming_notes, str):
-                        incoming_notes = ""
-                    if not incoming_notes:
-                        incoming_notes = artist_data.get(
-                            "current_file_notes",
-                            "",
-                        )
                     if not isinstance(incoming_notes, str):
                         incoming_notes = ""
                     cache_data["current_file_notes"] = incoming_notes
@@ -834,7 +963,11 @@ class FossaDB(ProjectMethods):
                         raise ValueError(
                             "Invalid incremental Blender save cache"
                         )
-                    if artist_data.get("current_file") != increment_from:
+                    active_checkout = artist_data.get("current_file")
+                    if active_checkout == increment_to:
+                        network_cache_path.unlink(missing_ok=True)
+                        return True
+                    if active_checkout != increment_from:
                         raise ValueError(
                             "Incremental save no longer matches the active checkout"
                         )
@@ -903,6 +1036,15 @@ class FossaDB(ProjectMethods):
                     notes = ""
                 current_file = cache_data.get("current_file", "")
                 if isinstance(current_file, str) and current_file:
+                    if (
+                        not increment_from
+                        and artist_data.get("current_file") != current_file
+                    ):
+                        network_cache_path.unlink(missing_ok=True)
+                        return True
+                    artist_data["current_file"] = str(
+                        Path(current_file).expanduser().resolve()
+                    )
                     files = database.setdefault("__blender_files__", {})
                     if isinstance(files, dict):
                         file_record = files.get(
@@ -916,7 +1058,8 @@ class FossaDB(ProjectMethods):
                 elif current_file == "":
                     artist_data["current_file"] = ""
                     artist_data.pop("pending_create_file", None)
-                    artist_data["current_file_notes"] = ""
+                    artist_data["current_file_checklist"] = dict(checklist)
+                    artist_data["current_file_notes"] = notes
 
                 cache_data.pop("increment_from", None)
                 cache_data.pop("increment_to", None)
@@ -924,7 +1067,20 @@ class FossaDB(ProjectMethods):
                     cache_data["pending_create_file"] = artist_data[
                         "pending_create_file"
                     ]
-                database[artist] = cache_data
+                artist_data["revision"] = cache_data.get("revision", 0)
+                artist_data["blender_open"] = bool(
+                    cache_data.get("blender_open", False)
+                )
+                artist_data["recent_files"] = list(recent_files)
+                artist_data["current_file_checklist"] = dict(checklist)
+                artist_data["current_file_notes"] = notes
+                artist_data["unlock_ssot_request"] = bool(
+                    cache_data.get("unlock_ssot_request", False)
+                )
+                artist_data["ssot_unlock_count"] = cache_data.get(
+                    "ssot_unlock_count", 0
+                )
+                database[artist] = artist_data
                 self._WriteDatabase(database)
                 network_cache_path.unlink()
                 return True

@@ -143,7 +143,10 @@ class CacheWorkerMethods:
                     network_cache_path,
                     failure_reporter=self._ReportFailure,
                 )
-            except (OSError, ValueError):
+            except (OSError, ValueError, RuntimeError):
+                self._ReportFailure(
+                    "database cache update failed; retrying in 60 seconds"
+                )
                 self._ScheduleDatabaseUpdateRetry()
                 return False
 

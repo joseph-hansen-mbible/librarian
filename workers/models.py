@@ -48,6 +48,7 @@ class LocalCacheData:
         current_file_notes="",
         increment_from="",
         increment_to="",
+        closing_file="",
     ):
         self.current_file = current_file
         self.recent_files = recent_files if recent_files is not None else []
@@ -61,3 +62,4 @@ class LocalCacheData:
         self.current_file_notes = current_file_notes
         self.increment_from = increment_from
         self.increment_to = increment_to
+        self.closing_file = closing_file

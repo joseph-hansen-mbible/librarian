@@ -66,9 +66,14 @@ def WriteInitialBlenderSessionCache(fossa_db, artist, filepath):
         notes = ""
     if not isinstance(unlock_count, int) or isinstance(unlock_count, bool):
         unlock_count = 0
+    existing_revision = artist_data.get("revision", 0)
+    if not isinstance(existing_revision, int) or isinstance(existing_revision, bool):
+        existing_revision = 0
+    if existing_revision < 0:
+        existing_revision = 0
 
     cache_data = {
-        "revision": 0,
+        "revision": existing_revision,
         "blender_open": True,
         "current_file": str(filepath),
         "recent_files": recent_files,
@@ -80,6 +85,7 @@ def WriteInitialBlenderSessionCache(fossa_db, artist, filepath):
         "current_file_notes": notes,
         "increment_from": "",
         "increment_to": "",
+        "closing_file": "",
     }
     cache_path = BlenderSessionCachePath(artist)
     cache_path.parent.mkdir(parents=True, exist_ok=True)
@@ -223,6 +229,7 @@ class BlenderSessionMonitor:
             current_file_notes=cache_data.get("current_file_notes", ""),
             increment_from=cache_data.get("increment_from", ""),
             increment_to=cache_data.get("increment_to", ""),
+            closing_file=cache_data.get("closing_file", ""),
         )
 
         from workers.core import FossaWorker
@@ -295,6 +302,9 @@ class BlenderSessionMonitor:
             value = cache_data.get(field, "")
             if not isinstance(value, str):
                 raise ValueError(f"Blender cache {field} must be text")
+        closing_file = cache_data.get("closing_file", "")
+        if not isinstance(closing_file, str):
+            raise ValueError("Blender cache closing_file must be text")
 
     def _ReportFailure(self, message):
         self.fossa_db._ReportFailure(
