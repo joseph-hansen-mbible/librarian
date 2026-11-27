@@ -1,5 +1,6 @@
 from enum import Enum
 from pathlib import Path
+import shutil
 
 class BlenderFileStatus(Enum):
     WIP = "wip"
@@ -142,25 +143,55 @@ class BlenderFile:
             c = self.sanitize(self.character)
             # project_Rig_character_status_version
             self.filename = "_".join([project_code, "CharRig", c, self.status.value, self.version_code()])
-        elif self.action == BlenderFileActions.PROP:
+            return self.filename
+        elif self.action == BlenderFileActions.PROP.value:
             p = [project_code, "Prop"]
             # project_Prop_level_setting_prop_status_version
             for thing in [self.scene, self.setting, self.prop]:
                 p.append(self.sanitize(thing))
             p = p + [self.status.value, self.version_code()]
-            p = "_".join(p)
-        elif self.action == BlenderFileActions.GRAYBOX:
+            self.filename = "_".join(p)
+            return self.filename
+        elif self.action == BlenderFileActions.GRAYBOX.value:
             p = [project_code, "Graybox"]
             for thing in [self.scene, self.shot]:
                 p.append(self.sanitize(thing))
             p = p + [self.status.value, self.version_code()]
-            p = "_".join(p)
-        elif self.action == BlenderFileActions.ANIMATE_GRAYBOX:
+            self.filename = "_".join(p)
+            return self.filename
+        elif self.action == BlenderFileActions.ANIMATE_GRAYBOX.value:
             p = [project_code, "AnimGraybox"]
             for thing in [self.scene, self.shot]:
                 p.append(self.sanitize(thing))
             p = p + [self.status.value, self.version_code()]
-            p = "_".join(p)
+            self.filename = "_".join(p)
+            return self.filename
+        elif self.action == BlenderFileActions.SET_WORK.value:
+            p = [project_code, "Set"]
+            # project_Set_level_setting_status_version
+            for thing in [self.scene, self.setting]:
+                p.append(self.sanitize(thing))
+            p = p + [self.status.value, self.version_code()]
+            self.filename = "_".join(p)
+            return self.filename
+        elif self.action == BlenderFileActions.CHARACTER_MATERIALS.value:
+            p = [project_code, "CharMaterials"]
+            # project_CharMaterials_level_setting_status_version
+            for thing in [self.scene, self.setting]:
+                p.append(self.sanitize(thing))
+            p = p + [self.status.value, self.version_code()]
+            self.filename = "_".join(p)
+            return self.filename
+        elif self.action == BlenderFileActions.COMPOSITE.value:
+            p = [project_code, "Composite"]
+            # project_Composite_level_shot_status_version
+            for thing in [self.scene, self.shot]:
+                p.append(self.sanitize(thing))
+            p = p + [self.status.value, self.version_code()]
+            self.filename = "_".join(p)
+            return self.filename
+
+        raise ValueError(f"No filename is defined for Blender action {self.action!r}")
     
     def get_path(self, project_folder, project_code):
         filename = self.get_filename(project_code)
@@ -185,18 +216,75 @@ class BlenderFile:
         return self.checklist
         
     def ready_to_request_ssot(self):
-        for key in self.checklist.keys:
-            if self.checklist[key] == False:
+        for key in self.checklist:
+            if self.checklist[key] is False:
                 return False
         return True
     
     def ready_for_ssot(self):
         if self.ready_to_request_ssot():
-            if self.unlock_approvals == 2:
+            if self.unlock_approvals >= 2:
                 return True
         return False
     
-    def make_ssot(self):
-        if (self.ready_for_ssot):
-            self.status = BlenderFileStatus.SSOT
-            # make a duplicate of the file, rename 
+    def make_ssot(self, database=None, artist="", filepath=None):
+        if not self.ready_for_ssot():
+            return None
+
+        project_directory = Path(
+            str(self.project.directory_path)
+        ).expanduser().resolve()
+        project_code = str(self.project.project_code)
+        source_path = (
+            Path(filepath).expanduser().resolve()
+            if filepath is not None
+            else self.get_path(project_directory, project_code)
+        )
+        if not source_path.is_file():
+            raise FileNotFoundError(
+                f"Cannot make SSOT: Blender file does not exist: {source_path}"
+            )
+
+        if database is not None:
+            make_ssot = getattr(database, "MakeBlenderFileSSOT", None)
+            if callable(make_ssot):
+                target_path = make_ssot(str(artist), str(source_path))
+                if target_path:
+                    self.status = BlenderFileStatus.SSOT
+                    self.unlock_approvals = 2
+                    return Path(str(target_path))
+
+        previous_status = self.status
+        self.status = BlenderFileStatus.SSOT
+        try:
+            target_path = self.get_path(
+                str(project_directory),
+                project_code,
+            )
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            if target_path != source_path:
+                shutil.copy2(source_path, target_path)
+        except Exception:
+            self.status = previous_status
+            raise
+
+        if database is not None:
+            metadata = {
+                "project_name": self.project.name,
+                "project_directory": str(project_directory),
+                "scene": self.scene or "",
+                "shot": self.shot or "",
+                "character": self.character or "",
+                "prop": self.prop or "",
+                "setting": self.setting or "",
+                "version": self.version,
+                "action": self.action,
+                "status": BlenderFileStatus.SSOT.value,
+                "checklist": dict(self.checklist),
+                "unlock_approvals": self.unlock_approvals,
+            }
+            record_use = getattr(database, "RecordBlenderFileUse", None)
+            if callable(record_use):
+                record_use(str(artist), str(target_path), metadata)
+
+        return target_path

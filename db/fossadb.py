@@ -6,6 +6,9 @@ import sys
 import time
 from pathlib import Path
 import uuid
+import re
+import shutil
+from copy import deepcopy
 
 from db import file_lock
 from db.project_methods import ProjectMethods
@@ -511,6 +514,80 @@ class FossaDB(ProjectMethods):
             finally:
                 file_lock.flock(lock_file.fileno(), file_lock.LOCK_UN)
 
+    def _MakeBlenderFileSSOTLocked(self, database, filepath):
+        requested_path = str(Path(filepath).expanduser().resolve())
+        files = database.setdefault("__blender_files__", {})
+        if not isinstance(files, dict):
+            raise ValueError("Blender file index must be a JSON object")
+
+        file_record = files.get(requested_path)
+        if not isinstance(file_record, dict):
+            raise ValueError("Unknown Blender file")
+
+        checklist = file_record.get("checklist", {})
+        if not isinstance(checklist, dict) or not checklist:
+            raise ValueError("This Blender file has no SSOT checklist")
+        if any(value is not True for value in checklist.values()):
+            raise ValueError("The SSOT checklist must be complete")
+
+        approval_count = file_record.get("unlock_approvals", 0)
+        if not isinstance(approval_count, int) or isinstance(approval_count, bool):
+            approval_count = 0
+        if approval_count < self.REQUIRED_PROJECT_APPROVALS:
+            raise ValueError("Two SSOT approvals are required")
+
+        source_path = Path(requested_path)
+        if not source_path.is_file():
+            raise FileNotFoundError(
+                f"Cannot make SSOT: Blender file does not exist: {source_path}"
+            )
+        target_path = source_path.with_name(
+            re.sub(r"_wip_", "_ssot_", source_path.name, flags=re.IGNORECASE)
+        )
+        if target_path == source_path:
+            stem = source_path.stem
+            if stem.lower().endswith("_wip"):
+                stem = stem[:-4] + "_ssot"
+            else:
+                stem = re.sub(r"wip", "ssot", stem, flags=re.IGNORECASE)
+            target_path = source_path.with_name(stem + source_path.suffix)
+        if target_path == source_path:
+            raise ValueError("Could not derive an SSOT Blender filename")
+
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source_path, target_path)
+
+        ssot_record = deepcopy(file_record)
+        ssot_record["filepath"] = str(target_path)
+        ssot_record["status"] = "ssot"
+        ssot_record["unlock_requested"] = False
+        ssot_record["unlock_ssot_ready"] = False
+        ssot_record["unlock_approvals"] = approval_count
+        ssot_record["checklist"] = dict(checklist)
+        ssot_record["notes"] = (
+            file_record["notes"]
+            if isinstance(file_record.get("notes"), str)
+            else ""
+        )
+        files[str(target_path)] = ssot_record
+        return str(target_path)
+
+    def MakeBlenderFileSSOT(self, artist, filepath):
+        artist = str(artist)
+        requested_path = str(Path(filepath).expanduser().resolve())
+        with self._OpenDatabaseLock() as lock_file:
+            file_lock.flock(lock_file.fileno(), file_lock.LOCK_EX)
+            try:
+                database = self._ReadDatabase()
+                target_path = self._MakeBlenderFileSSOTLocked(
+                    database,
+                    requested_path,
+                )
+                self._WriteDatabase(database)
+                return target_path
+            finally:
+                file_lock.flock(lock_file.fileno(), file_lock.LOCK_UN)
+
     def UpdateBlenderFileNotes(self, artist, filepath, notes):
         artist = str(artist)
         requested_path = str(Path(filepath).expanduser().resolve())
@@ -693,8 +770,13 @@ class FossaDB(ProjectMethods):
                 file_record["unlock_approval_names"] = approvals
                 file_record["unlock_approvals"] = approval_count
                 if approval_count >= self.REQUIRED_PROJECT_APPROVALS:
+                    self._MakeBlenderFileSSOTLocked(
+                        database,
+                        requested_path,
+                    )
+                    file_record = files[requested_path]
                     file_record["unlock_ssot_ready"] = True
-                    file_record["status"] = "ssot"
+                    file_record["unlock_requested"] = False
                 files[requested_path] = file_record
 
                 owner_data = database.get(artist)
