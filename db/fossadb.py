@@ -121,19 +121,16 @@ class FossaDB(ProjectMethods):
                 if self.database_file_path.exists():
                     self._ReadDatabase()
                 else:
-                    unexpected_entries = [
-                        entry
-                        for entry in self.network_base_path.iterdir()
-                        if entry.name != ".fossa.db.lock"
-                    ]
-                    if unexpected_entries:
-                        message = (
-                            "Fossa database file is missing; refusing to create "
-                            "an empty replacement because the network location "
-                            "is not new"
+                    if not self.network_base_path.is_dir():
+                        raise FileNotFoundError(
+                            "Fossa database is missing and the network path "
+                            "is unavailable"
                         )
-                        self._ReportFailure(message)
-                        raise FileNotFoundError(message)
+                    message = (
+                        "Fossa database file was missing; the verified network "
+                        "path is available, so recreating an empty database"
+                    )
+                    self._ReportFailure(message)
                     self._WriteDatabase({})
             finally:
                 file_lock.flock(lock_file.fileno(), file_lock.LOCK_UN)

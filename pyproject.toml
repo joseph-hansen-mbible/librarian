@@ -27,4 +27,6 @@ namespaces = true
 gui = [
     "assets/*",
     "themes/**/*",
+    "whoami/*",
+    "whoami/.whoami",
 ]

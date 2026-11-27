@@ -1,5 +1,4 @@
 import tkinter as tk
-from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
 from gui.resource_paths import gui_resource

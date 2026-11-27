@@ -28,7 +28,7 @@ from workers.blender_session import (
     BlenderSessionCachePath,
     StartBlenderSessionMonitor,
 )
-from gui.resource_paths import bundle_root, gui_resource
+from gui.resource_paths import gui_resource
 
 CLOSE_APPLICATION_TIMEOUT_MS = 1_000
 CLOSE_APPLICATION_POLL_MS = 50

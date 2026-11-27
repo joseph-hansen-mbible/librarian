@@ -1,4 +1,3 @@
-from pathlib import Path
 import json
 
 from gui.resource_paths import gui_resource
