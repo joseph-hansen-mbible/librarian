@@ -6,8 +6,8 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from gui.methods import Helpers
-from whoami import Who
-from objects.References import References
+from gui.whoami import Who
+from gui.objects.References import References
 
 
 def main():

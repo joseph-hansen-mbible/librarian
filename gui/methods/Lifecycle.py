@@ -28,6 +28,7 @@ from workers.blender_session import (
     BlenderSessionCachePath,
     StartBlenderSessionMonitor,
 )
+from gui.resource_paths import bundle_root, gui_resource
 
 CLOSE_APPLICATION_TIMEOUT_MS = 1_000
 CLOSE_APPLICATION_POLL_MS = 50
@@ -42,7 +43,11 @@ def FossaMain(ref, on_ready=None):
     )
     
     style = ttk.Style(ref.main_window)
-    theme_script = PROJECT_ROOT / "themes" / "tkbreezedark" / "breeze-dark.tcl"
+    theme_script = gui_resource(
+        "themes",
+        "tkbreezedark",
+        "breeze-dark.tcl",
+    )
     ref.main_window.tk.call("source", str(theme_script))
     style.theme_use("breeze-dark")
     style.map(
@@ -159,7 +164,7 @@ def FossaMain(ref, on_ready=None):
         ref.main_window.mainloop()
 
 def FossaIcon(main_window):
-    icon_path = Path(__file__).resolve().parent.parent / "assets" / "icon.png"
+    icon_path = gui_resource("assets", "icon.png")
     photo = tk.PhotoImage(file=str(icon_path))
     main_window.iconphoto(False, photo)
     main_window.mainloop()

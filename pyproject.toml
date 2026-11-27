@@ -8,6 +8,13 @@ version = "0.1.0"
 description = "A desktop librarian for Blender project files"
 readme = "README.md"
 requires-python = ">=3.11"
+dependencies = [
+    "platformdirs",
+]
+
+[project.scripts]
+fossa = "gui.fossa:main"
+
 [tool.setuptools]
 include-package-data = true
 

@@ -2,6 +2,8 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
+from gui.resource_paths import gui_resource
+
 
 class CreatorsSettings:
     @staticmethod
@@ -28,9 +30,7 @@ class CreatorsSettings:
 
     @staticmethod
     def create_settings_button(ref, parent):
-        settings_icon_path = (
-            Path(__file__).resolve().parent.parent / "assets" / "settings.png"
-        )
+        settings_icon_path = gui_resource("assets", "settings.png")
         ref.settings_icon = tk.PhotoImage(file=str(settings_icon_path)).subsample(2, 2)
         ref.settings_button = ttk.Button(
             parent,
