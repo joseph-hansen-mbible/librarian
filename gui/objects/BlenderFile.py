@@ -125,12 +125,42 @@ class BlenderFile:
     def version_code(self):
         return f"{self.version:02d}"
     
+    def sanitize(self, text):
+        text = "".join(text.split(" "))
+        b = "!@#$':;^%*()-–=+`~’"
+        for c in b:
+            text = text.replace(c, "")
+        return text
+    
     def get_filename(self, project_code):
         if self.action == BlenderFileActions.CHARACTER_MODEL.value:
-            c = "".join(self.character.split(" ")) # remove any spaces
+            c = self.sanitize(self.character)
+            # project_CharModel_character_status_version
             self.filename = "_".join([project_code, "CharModel", c, self.status.value, self.version_code()])
-            # the caller uses a worker to get the project_code from database
             return self.filename 
+        elif self.action == BlenderFileActions.CHARACTER_RIG.value:
+            c = self.sanitize(self.character)
+            # project_Rig_character_status_version
+            self.filename = "_".join([project_code, "CharRig", c, self.status.value, self.version_code()])
+        elif self.action == BlenderFileActions.PROP:
+            p = [project_code, "Prop"]
+            # project_Prop_level_setting_prop_status_version
+            for thing in [self.scene, self.setting, self.prop]:
+                p.append(self.sanitize(thing))
+            p = p + [self.status.value, self.version_code()]
+            p = "_".join(p)
+        elif self.action == BlenderFileActions.GRAYBOX:
+            p = [project_code, "Graybox"]
+            for thing in [self.scene, self.shot]:
+                p.append(self.sanitize(thing))
+            p = p + [self.status.value, self.version_code()]
+            p = "_".join(p)
+        elif self.action == BlenderFileActions.ANIMATE_GRAYBOX:
+            p = [project_code, "AnimGraybox"]
+            for thing in [self.scene, self.shot]:
+                p.append(self.sanitize(thing))
+            p = p + [self.status.value, self.version_code()]
+            p = "_".join(p)
     
     def get_path(self, project_folder, project_code):
         filename = self.get_filename(project_code)
